@@ -23,6 +23,11 @@
             <artifactId>mybatis-plus-boot-starter</artifactId>
             <version>3.5.12</version>
         </dependency>
+        <!-- jdk 8+ 引入可选模块 -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-jsqlparser-4.9</artifactId>
+        </dependency>
         <!-- 工具库: https://www.hutool.cn/docs/#/-->
         <dependency>
             <groupId>cn.hutool</groupId>
@@ -34,6 +39,16 @@
             <groupId>com.github.xiaoymin</groupId>
             <artifactId>knife4j-openapi2-spring-boot-starter</artifactId>
             <version>4.4.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjweaver</artifactId>
         </dependency>
 
         <dependency>
@@ -58,6 +73,13 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
                 <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-bom</artifactId>
+                <version>3.5.9</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

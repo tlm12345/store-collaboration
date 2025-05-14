@@ -1,4 +1,4 @@
-package com.tlm.storecollab.model.request;
+package com.tlm.storecollab.model.dto.user;
 
 import lombok.Data;
 

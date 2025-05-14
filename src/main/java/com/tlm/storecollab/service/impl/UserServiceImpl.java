@@ -1,5 +1,7 @@
 package com.tlm.storecollab.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.SecureUtil;
@@ -7,13 +9,22 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.tlm.storecollab.constant.UserConstant;
 import com.tlm.storecollab.mapper.UserMapper;
+import com.tlm.storecollab.model.dto.user.UserQueryRequest;
+import com.tlm.storecollab.model.dto.user.UserUpdateRequest;
 import com.tlm.storecollab.model.entity.User;
-import com.tlm.storecollab.model.request.UserLoginRequest;
-import com.tlm.storecollab.model.request.UserRegisterRequest;
+import com.tlm.storecollab.model.dto.user.UserLoginRequest;
+import com.tlm.storecollab.model.dto.user.UserRegisterRequest;
+import com.tlm.storecollab.model.vo.LoginUserVO;
+import com.tlm.storecollab.model.vo.UserVO;
 import com.tlm.storecollab.service.UserService;
 import com.tlm.storecollab.common.ThrowUtils;
 import com.tlm.storecollab.common.ErrorCode; // 添加错误码导入
 import org.springframework.stereotype.Service;
+
+import javax.servlet.http.HttpServletRequest;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
@@ -63,13 +74,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     public User login(UserLoginRequest request) {
-        // 校验账户是否为空
+        // 校验账户是否为空, 校验密码是否为空
         String userAccount = request.getUserAccount();
-        ThrowUtils.throwIf(StrUtil.isBlank(userAccount), ErrorCode.PARAMS_ERROR, "用户账户不能为空");
-
-        // 校验密码是否为空
         String userPassword = request.getUserPassword();
-        ThrowUtils.throwIf(StrUtil.isBlank(userPassword), ErrorCode.PARAMS_ERROR, "用户密码不能为空");
+        ThrowUtils.throwIf(!StrUtil.isAllNotBlank(userAccount, userPassword), ErrorCode.PARAMS_ERROR, "用户账户不能为空");
+
 
         // 查询用户是否存在
         User queryConditionUser = new User();
@@ -80,6 +89,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 校验密码是否正确
         String encryptedPassword = this.encryptPassword(userPassword, UserConstant.SALT);
         ThrowUtils.throwIf(!encryptedPassword.equals(resUser.getUserPassword()), ErrorCode.PARAMS_ERROR, "用户密码错误");
+
 
         return resUser;
     }
@@ -104,8 +114,86 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
+    public QueryWrapper<User> getQueryWrapper(UserQueryRequest userQueryRequest) {
+        if (userQueryRequest == null) return null;
+
+        Long id = userQueryRequest.getId();
+        String userName = userQueryRequest.getUserName();
+        String userAccount = userQueryRequest.getUserAccount();
+        String userProfile = userQueryRequest.getUserProfile();
+        String userRole = userQueryRequest.getUserRole();
+
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq(id != null, "id", id);
+        queryWrapper.eq(userRole != null, "userRole", userRole);
+        queryWrapper.like(!StrUtil.isBlank(userAccount), "userAccount", userAccount);
+        queryWrapper.like(!StrUtil.isBlank(userName), "userName", userName);
+        queryWrapper.like(!StrUtil.isBlank(userProfile), "userProfile", userProfile);
+
+        return queryWrapper;
+    }
+
+
+    @Override
     public String encryptPassword(String password, String salt) {
         return SecureUtil.md5(password + salt);
+    }
+
+    @Override
+    public User getLoginUser(HttpServletRequest request) {
+        Object attribute = request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
+        if (ObjectUtil.isNull(attribute)){
+            return null;
+        }
+        return (User) attribute;
+    }
+
+    @Override
+    public LoginUserVO getLoginUserVO(User user) {
+        if (ObjectUtil.isNull(user)) return null;
+
+        LoginUserVO loginUserVO = new LoginUserVO();
+        BeanUtil.copyProperties(user, loginUserVO);
+        return loginUserVO;
+    }
+
+    @Override
+    public UserVO getUserVO(User user) {
+        if (user == null) return null;
+
+        UserVO userVO = new UserVO();
+        BeanUtil.copyProperties(user, userVO);
+        return userVO;
+    }
+
+    @Override
+    public List<UserVO> getUserVOList(List<User> userList) {
+        if (CollUtil.isEmpty(userList)) return new ArrayList<>();
+
+        return userList.stream().map(this::getUserVO).collect(Collectors.toList());
+    }
+
+    @Override
+    public Boolean logout(HttpServletRequest request) {
+        Object attribute = request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
+        ThrowUtils.throwIf(ObjectUtil.isNull(attribute), ErrorCode.NOT_LOGIN);
+        request.getSession().removeAttribute(UserConstant.USER_LOGIN_STATE);
+        return true;
+    }
+
+    @Override
+    public Boolean updateUser(UserUpdateRequest userUpdateRequest) {
+        ThrowUtils.throwIf(ObjectUtil.isEmpty(userUpdateRequest), ErrorCode.PARAMS_ERROR);
+
+        // 判断用户是否存在
+        Long id = userUpdateRequest.getId();
+        ThrowUtils.throwIf(ObjectUtil.isNull(id), ErrorCode.PARAMS_ERROR);
+        User oldUser = this.getById(id);
+        ThrowUtils.throwIf(ObjectUtil.isEmpty(oldUser), ErrorCode.PARAMS_ERROR);
+
+        User user = new User();
+        BeanUtil.copyProperties(userUpdateRequest, user);
+        return this.updateById(user);
     }
 
     private User queryUserWithCondition(User user) {
