@@ -37,3 +37,11 @@ knife4j:
         api-rule-resources:
           - com.tlm.storecollab.controller
 
+# 对象存储配置（需要从腾讯云获取）
+cos:
+  client:
+    host: https://store-collab-1311433795.cos.ap-guangzhou.myqcloud.com
+    secretId: AKIDT0b6g8Rgpx1va2HI6g9OC2g6ITTGtLac
+    secretKey: 397wtxsZ4MRKzQOGvNceU7ZoqiMn02xf
+    region: ap-guangzhou
+    bucket: store-collab-1311433795
