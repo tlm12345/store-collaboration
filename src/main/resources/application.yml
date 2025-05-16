@@ -36,4 +36,3 @@ knife4j:
         api-rule: package
         api-rule-resources:
           - com.tlm.storecollab.controller
-

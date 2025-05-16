@@ -5,8 +5,8 @@ public interface UserConstant {
     String USER_LOGIN_STATE = "userLoginState";
 
     // region 用户权限
-    String USER_ROLE_ADMIN = "admin";
-    String USER_ROLE_USER = "user";
+    String ADMIN_ROLE = "admin";
+    String USER_ROLE = "user";
     // endregion
 
     // 用户加盐
