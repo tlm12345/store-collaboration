@@ -196,6 +196,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return this.updateById(user);
     }
 
+    @Override
+    public Boolean isAdmin(User user) {
+        return user != null && UserConstant.ADMIN_ROLE.equals(user.getUserRole());
+    }
+
     private User queryUserWithCondition(User user) {
         QueryWrapper<User> queryWrapper = getQueryWrapper(user);
         return this.getOne(queryWrapper);

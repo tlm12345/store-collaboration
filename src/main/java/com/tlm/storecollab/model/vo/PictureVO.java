@@ -1,15 +1,21 @@
 package com.tlm.storecollab.model.vo;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
+import com.tlm.storecollab.model.entity.Picture;
+import lombok.Data;
 
+import java.io.Serializable;
 import java.util.Date;
 
 /**
  * 图片视图
  */
-public class PictureVO {
+@Data
+public class PictureVO implements Serializable {
+    private static final long serialVersionUID = 808922040726111804L;
     /**
      * id
      */
@@ -79,4 +85,10 @@ public class PictureVO {
      * 创建时间
      */
     private Date createTime;
+
+    public static PictureVO objToVo(Picture picture) {
+        PictureVO res = new PictureVO();
+        BeanUtil.copyProperties(picture, res);
+        return res;
+    }
 }
