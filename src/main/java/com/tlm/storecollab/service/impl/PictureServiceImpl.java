@@ -2,6 +2,7 @@ package com.tlm.storecollab.service.impl;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.ObjectUtil;
@@ -12,12 +13,18 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.tlm.storecollab.common.ErrorCode;
 import com.tlm.storecollab.common.ThrowUtils;
 import com.tlm.storecollab.config.CosClientConfig;
+import com.tlm.storecollab.constant.PictureConstant;
 import com.tlm.storecollab.manager.FileManager;
+import com.tlm.storecollab.manager.upload.PictureUpload;
+import com.tlm.storecollab.manager.upload.PictureUploadTemplate;
+import com.tlm.storecollab.manager.upload.UrlUpload;
 import com.tlm.storecollab.model.dto.file.UploadPictureResult;
 import com.tlm.storecollab.model.dto.picture.PictureQueryRequest;
+import com.tlm.storecollab.model.dto.picture.PictureReviewRequest;
 import com.tlm.storecollab.model.dto.picture.UploadPictureRequest;
 import com.tlm.storecollab.model.entity.Picture;
 import com.tlm.storecollab.model.entity.User;
+import com.tlm.storecollab.model.enums.PictureReviewStatusEnum;
 import com.tlm.storecollab.model.vo.PictureVO;
 import com.tlm.storecollab.model.vo.UserVO;
 import com.tlm.storecollab.service.PictureService;
@@ -45,25 +52,36 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     @Resource
     private UserService userService;
 
+    @Resource
+    private PictureUpload pictureUpload;
+
+    @Resource
+    private UrlUpload urlUpload;
+
 
     @Override
-    public PictureVO uploadPicture(MultipartFile multipartFile, UploadPictureRequest uploadPictureRequest, User loginUser) {
+    public PictureVO uploadPicture(Object inputSource, UploadPictureRequest uploadPictureRequest, User loginUser) {
         // 校验登录
         ThrowUtils.throwIf(ObjectUtil.isEmpty(loginUser), ErrorCode.NOT_LOGIN);
         // 校验图片文件和上传请求参数是否为空
         // 如果uploadPictureRequest为空，则默认为只上传图片,此时图片必须不为空
         // 如果uplaodPictureRequest不为空，则默认为完善图片记录,此时图片可以为空
         if (uploadPictureRequest == null){
-            ThrowUtils.throwIf(ObjectUtil.isEmpty(multipartFile), ErrorCode.NULL_ERROR, "请上传图片");
+            ThrowUtils.throwIf(ObjectUtil.isEmpty(inputSource), ErrorCode.NULL_ERROR, "请上传图片");
         }
 
         // 根据用户是否上传图片记录id来判断，本次请求是只上传图片，还是完善图片记录
         Long picId = uploadPictureRequest.getId();
         Long userId = loginUser.getId();
         Picture picture = new Picture();
+
+        PictureUploadTemplate pictureUploadTemplate = pictureUpload;
+        if (inputSource instanceof String){
+            pictureUploadTemplate = urlUpload;
+        }
         // 如果只上传图片, 创建图片记录
         if (picId == null){
-            UploadPictureResult uploadPictureResult = fileManager.uploadPicture(multipartFile, "public");
+            UploadPictureResult uploadPictureResult = pictureUploadTemplate.uploadPicture(inputSource, "public");
             picture.setUrl(uploadPictureResult.getUrl());
             picture.setName(uploadPictureResult.getPicName());
             picture.setPicSize(uploadPictureResult.getPicSize());
@@ -87,6 +105,13 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             List<String> tags1 = uploadPictureRequest.getTags();
             if (tags1 == null) tags1 = Arrays.asList();
             picture.setTags(JSONUtil.toJsonStr(tags1));
+        }
+
+        if (userService.isAdmin(loginUser)){
+            picture.setViewTime(new Date());
+            picture.setViewer(loginUser.getId());
+            picture.setViewStatus(PictureReviewStatusEnum.PASS.getValue());
+            picture.setViewMessage(PictureConstant.ADMIN_CREATE);
         }
 
         // 返回最新的图片记录
@@ -158,6 +183,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         });
         if (isAdmin) {
             queryWrapper.and(eq -> eq.like("name", searchText).like("introduction", searchText));
+        }else {
+            // 不是管理员，则只能查看到，审核通过的图片
+            queryWrapper.eq("reviewStatus", PictureReviewStatusEnum.PASS.getValue());
         }
         queryWrapper.ge(minPicSize != null, "picSize", minPicSize);
         queryWrapper.le(maxPicSize != null, "picSize", maxPicSize);
@@ -186,6 +214,43 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         });
 
         return picVOList;
+    }
+
+    @Override
+    public boolean reviewPicture(PictureReviewRequest pictureReviewRequest, User loginUser) {
+        // 校验数据是否为空
+        ThrowUtils.throwIf(pictureReviewRequest == null || pictureReviewRequest.getId() == null, ErrorCode.NULL_ERROR);
+
+        // 判断是否是管理员在操作
+        Boolean isAdmin = userService.isAdmin(loginUser);
+        ThrowUtils.throwIf(!isAdmin, ErrorCode.NO_AUTH);
+
+        // 获取请求数据
+        Long id = pictureReviewRequest.getId();
+        Integer newStatus = pictureReviewRequest.getViewStatus();
+        String viewMessage = pictureReviewRequest.getViewMessage();
+
+        // 判断图片是否在数据库中
+        Picture oldPic = this.getById(id);
+        ThrowUtils.throwIf(oldPic == null, ErrorCode.PARAMS_ERROR, "图片不存在");
+
+        // 审核状态不能无变化， 也不能从通过和拒绝转换到待审核
+        Integer oldStatus = oldPic.getViewStatus();
+        boolean notChange = Objects.equals(oldStatus, newStatus);
+        boolean passOrRejected2Reviewing = (!PictureReviewStatusEnum.REVIEWING.getValue().equals(oldStatus)
+                && PictureReviewStatusEnum.REVIEWING.getValue().equals(newStatus));
+        ThrowUtils.throwIf(notChange || passOrRejected2Reviewing, ErrorCode.PARAMS_ERROR, "不支持的状态流转");
+
+        // 修改图片状态以及审核人id，审核时间，审核原因，并返回修改结果
+        Picture newPic = new Picture();
+        BeanUtil.copyProperties(pictureReviewRequest, newPic);
+        newPic.setViewer(loginUser.getId());
+        newPic.setViewTime(new Date());
+
+        boolean res = this.updateById(newPic);
+        ThrowUtils.throwIf(!res, ErrorCode.OPERATION_ERROR);
+
+        return true;
     }
 }
 

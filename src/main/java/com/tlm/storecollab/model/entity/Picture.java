@@ -95,4 +95,24 @@ public class Picture {
      */
     @TableLogic
     private Integer isDelete;
+
+    /**
+     * 当前审核状态
+     */
+    private Integer viewStatus;
+
+    /**
+     * 审核时间
+     */
+    private Date viewTime;
+
+    /**
+     * 审核人 id
+     */
+    private Long viewer;
+
+    /**
+     * 审核理由（原因）
+     */
+    private String viewMessage;
 }

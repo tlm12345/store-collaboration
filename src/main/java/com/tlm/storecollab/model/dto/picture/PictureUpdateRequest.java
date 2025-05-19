@@ -4,6 +4,7 @@ package com.tlm.storecollab.model.dto.picture;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.Date;
 
 @Data
 public class PictureUpdateRequest implements Serializable {
@@ -37,4 +38,14 @@ public class PictureUpdateRequest implements Serializable {
      * 标签（JSON 数组）
      */
     private String tags;
+
+    /**
+     * 当前审核状态
+     */
+    private Integer viewStatus;
+
+    /**
+     * 审核理由（原因）
+     */
+    private String viewMessage;
 }

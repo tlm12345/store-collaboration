@@ -1,6 +1,7 @@
 package com.tlm.storecollab.model.dto.picture;
 
 
+import com.tlm.storecollab.common.PageRequest;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -8,7 +9,7 @@ import java.util.Date;
 import java.util.List;
 
 @Data
-public class PictureQueryRequest implements Serializable {
+public class PictureQueryRequest extends PageRequest implements Serializable{
 
     /**
      * 关键字搜索（管理员用）, 对名称和描述进行关键在搜索
