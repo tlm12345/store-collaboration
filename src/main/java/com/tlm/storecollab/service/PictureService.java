@@ -3,6 +3,7 @@ package com.tlm.storecollab.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.tlm.storecollab.model.dto.picture.PictureQueryRequest;
 import com.tlm.storecollab.model.dto.picture.PictureReviewRequest;
+import com.tlm.storecollab.model.dto.picture.UploadPictureByBatchRequest;
 import com.tlm.storecollab.model.dto.picture.UploadPictureRequest;
 import com.tlm.storecollab.model.entity.Picture;
 import com.baomidou.mybatisplus.extension.service.IService;
@@ -66,5 +67,13 @@ public interface PictureService extends IService<Picture> {
      * @return
      */
     public boolean reviewPicture(PictureReviewRequest pictureReviewRequest, User loginUser);
+
+    /**
+     * 管理员批量导入图片
+     * @param uploadPictureByBatchRequest
+     * @param loginUser
+     * @return
+     */
+    public Integer graspPicturesByBatch(UploadPictureByBatchRequest uploadPictureByBatchRequest, User loginUser);
 
 }

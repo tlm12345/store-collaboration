@@ -1,10 +1,10 @@
 package com.tlm.storecollab.service.impl;
+import java.util.ArrayList;
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
@@ -14,13 +14,14 @@ import com.tlm.storecollab.common.ErrorCode;
 import com.tlm.storecollab.common.ThrowUtils;
 import com.tlm.storecollab.config.CosClientConfig;
 import com.tlm.storecollab.constant.PictureConstant;
-import com.tlm.storecollab.manager.FileManager;
+import com.tlm.storecollab.exception.BusinessException;
 import com.tlm.storecollab.manager.upload.PictureUpload;
 import com.tlm.storecollab.manager.upload.PictureUploadTemplate;
 import com.tlm.storecollab.manager.upload.UrlUpload;
 import com.tlm.storecollab.model.dto.file.UploadPictureResult;
 import com.tlm.storecollab.model.dto.picture.PictureQueryRequest;
 import com.tlm.storecollab.model.dto.picture.PictureReviewRequest;
+import com.tlm.storecollab.model.dto.picture.UploadPictureByBatchRequest;
 import com.tlm.storecollab.model.dto.picture.UploadPictureRequest;
 import com.tlm.storecollab.model.entity.Picture;
 import com.tlm.storecollab.model.entity.User;
@@ -30,6 +31,11 @@ import com.tlm.storecollab.model.vo.UserVO;
 import com.tlm.storecollab.service.PictureService;
 import com.tlm.storecollab.mapper.PictureMapper;
 import com.tlm.storecollab.service.UserService;
+import lombok.extern.slf4j.Slf4j;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -40,14 +46,13 @@ import javax.annotation.Resource;
 * @description 针对表【picture(图片)】的数据库操作Service实现
 * @createDate 2025-05-15 11:10:31
 */
+@Slf4j
 @Service
 public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     implements PictureService{
 
     @Resource
     private CosClientConfig cosClientConfig;
-    @Resource
-    private FileManager fileManager;
 
     @Resource
     private UserService userService;
@@ -251,6 +256,65 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         ThrowUtils.throwIf(!res, ErrorCode.OPERATION_ERROR);
 
         return true;
+    }
+
+    @Override
+    public Integer graspPicturesByBatch(UploadPictureByBatchRequest uploadPictureByBatchRequest, User loginUser) {
+        // 校验参数是否为空
+        ThrowUtils.throwIf(
+                uploadPictureByBatchRequest == null || StrUtil.isBlank(uploadPictureByBatchRequest.getQ()),
+                ErrorCode.NULL_ERROR);
+
+        // 获取请求数据
+        String q = uploadPictureByBatchRequest.getQ();
+        String prefixName = uploadPictureByBatchRequest.getPrefixName();
+        Integer count = uploadPictureByBatchRequest.getCount();
+        if (StrUtil.isBlank(prefixName)) prefixName = q;
+
+        // 构造查询接口
+        String queryInterface = String.format("https://cn.bing.com/images/async?q=%s&count=%s", q, count);
+        // 定义成功上传的图片数
+        int amountSuccess = 0;
+        // 使用Jsoup获取响应
+        Document doc = null;
+        try {
+            doc = Jsoup.connect(queryInterface).get();
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "查询失败");
+        }
+        // 获取所有的img元素
+        Elements elements = doc.select("img.mimg");
+        // 循环， 获取每个img元素的src属性，然后上传图片
+        for (Element element : elements) {
+            String fileUrl = element.attr("src");
+            if (StrUtil.isBlank(fileUrl)){
+                continue;
+            }
+            // 清晰url，删除不必要的查询参数
+            int queryMarkIndex = fileUrl.indexOf("?");
+            if (queryMarkIndex == -1) {
+                // 没找到?, 处理下一个元素
+                continue;
+            }
+            fileUrl = fileUrl.substring(0, queryMarkIndex);
+
+            UploadPictureRequest uploadPictureRequest = new UploadPictureRequest();
+            uploadPictureRequest.setUrl(fileUrl);
+            uploadPictureRequest.setName(prefixName + "-" + (amountSuccess + 1));
+            try {
+                this.uploadPicture(fileUrl, uploadPictureRequest, loginUser);
+            }catch (Exception e){
+                log.error("图片上传失败：\n url is : [{}]\n" + e.getMessage(), fileUrl);
+                continue;
+            }
+            amountSuccess++;
+
+            if (amountSuccess >= 30) {
+                break;
+            }
+        }
+        // 返回成功上传的图片数
+        return amountSuccess;
     }
 }
 

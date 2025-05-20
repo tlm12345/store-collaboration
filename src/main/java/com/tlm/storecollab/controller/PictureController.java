@@ -172,4 +172,14 @@ public class PictureController {
         boolean b = pictureService.reviewPicture(pictureReviewRequest, loginUser);
         return ResultUtils.success(b);
     }
+
+    @PostMapping("/upload/batch")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Integer> uploadPicturesByBatch(@RequestBody UploadPictureByBatchRequest uploadPictureByBatchRequest, HttpServletRequest request){
+        ThrowUtils.throwIf(uploadPictureByBatchRequest == null, ErrorCode.NULL_ERROR);
+
+        User loginUser = userService.getLoginUser(request);
+        Integer count = pictureService.graspPicturesByBatch(uploadPictureByBatchRequest, loginUser);
+        return ResultUtils.success(count);
+    }
 }
