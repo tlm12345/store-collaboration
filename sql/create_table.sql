@@ -45,5 +45,13 @@ create table if not exists picture
     INDEX idx_introduction (introduction), -- 用于模糊搜索图片简介
     INDEX idx_category (category),         -- 提升基于分类的查询性能
     INDEX idx_tags (tags),                 -- 提升基于标签的查询性能
-    INDEX idx_userId (userId)              -- 提升基于用户 ID 的查询性能
+    INDEX idx_userId (userId)             -- 提升基于用户 ID 的查询性能
 ) comment '图片' collate = utf8mb4_unicode_ci;
+
+ALTER TABLE picture
+    ADD COLUMN viewStatus tinyint  default 0 null comment '当前审核状态',
+    ADD COLUMN viewTime datetime null comment '审核时间',
+    ADD COLUMN viewer bigint null comment '审核人 id',
+    ADD COLUMN viewMessage varchar(512) null comment '审核理由（原因）',
+    ADD INDEX idx_viewer (viewer),
+    ADD INDEX idx_viewMessage (viewMessage);

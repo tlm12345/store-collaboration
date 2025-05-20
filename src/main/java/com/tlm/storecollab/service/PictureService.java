@@ -2,6 +2,8 @@ package com.tlm.storecollab.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.tlm.storecollab.model.dto.picture.PictureQueryRequest;
+import com.tlm.storecollab.model.dto.picture.PictureReviewRequest;
+import com.tlm.storecollab.model.dto.picture.UploadPictureByBatchRequest;
 import com.tlm.storecollab.model.dto.picture.UploadPictureRequest;
 import com.tlm.storecollab.model.entity.Picture;
 import com.baomidou.mybatisplus.extension.service.IService;
@@ -20,12 +22,12 @@ public interface PictureService extends IService<Picture> {
 
     /**
      * 用户上传图片
-     * @param multipartFile
+     * @param inputSource
      * @param uploadPictureRequest
      * @param loginUser
      * @return
      */
-    public PictureVO uploadPicture(MultipartFile multipartFile,
+    public PictureVO uploadPicture(Object inputSource,
                                    UploadPictureRequest uploadPictureRequest,
                                    User loginUser);
 
@@ -51,6 +53,27 @@ public interface PictureService extends IService<Picture> {
      */
     public QueryWrapper<Picture> getQueryWrapper(PictureQueryRequest pictureQueryRequest, boolean isAdmin);
 
+    /**
+     * 将Picture实体类列表转为对应的VO列表
+     * @param pictureList
+     * @return
+     */
     public List<PictureVO> pictureListToVO(List<Picture> pictureList);
+
+    /**
+     * 管理员审核图片
+     * @param pictureReviewRequest
+     * @param loginUser
+     * @return
+     */
+    public boolean reviewPicture(PictureReviewRequest pictureReviewRequest, User loginUser);
+
+    /**
+     * 管理员批量导入图片
+     * @param uploadPictureByBatchRequest
+     * @param loginUser
+     * @return
+     */
+    public Integer graspPicturesByBatch(UploadPictureByBatchRequest uploadPictureByBatchRequest, User loginUser);
 
 }

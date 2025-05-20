@@ -2,9 +2,7 @@ package com.tlm.storecollab.controller;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tlm.storecollab.annotation.AuthCheck;
@@ -15,32 +13,24 @@ import com.tlm.storecollab.constant.UserConstant;
 import com.tlm.storecollab.exception.BusinessException;
 import com.tlm.storecollab.common.ErrorCode;
 import com.tlm.storecollab.common.ThrowUtils;
-import com.tlm.storecollab.model.dto.picture.PictureEditRequest;
-import com.tlm.storecollab.model.dto.picture.PictureQueryRequest;
-import com.tlm.storecollab.model.dto.picture.PictureUpdateRequest;
-import com.tlm.storecollab.model.dto.picture.UploadPictureRequest;
+import com.tlm.storecollab.model.dto.picture.*;
 import com.tlm.storecollab.model.entity.Picture;
 import com.tlm.storecollab.model.entity.User;
 import com.tlm.storecollab.model.vo.PictureVO;
 import com.tlm.storecollab.service.PictureService;
 import com.tlm.storecollab.service.UserService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
-import com.tlm.storecollab.model.dto.picture.PictureTagCategory;
 
 /**
+ * 图片接口
  */
 @Slf4j
 @RestController
@@ -59,6 +49,14 @@ public class PictureController {
                                                  HttpServletRequest request) {
         User loginUser = userService.getLoginUser(request);
         PictureVO pictureVO = pictureService.uploadPicture(multipartFile, uploadPictureRequest, loginUser);
+        return ResultUtils.success(pictureVO);
+    }
+    @PostMapping("/upload/url")
+    public BaseResponse<PictureVO> uploadPictureByUrl(@RequestBody UploadPictureRequest uploadPictureRequest, HttpServletRequest request) {
+        ThrowUtils.throwIf(uploadPictureRequest == null || StrUtil.isBlank(uploadPictureRequest.getUrl()), ErrorCode.NULL_ERROR);
+        String url = uploadPictureRequest.getUrl();
+        User loginUser = userService.getLoginUser(request);
+        PictureVO pictureVO = pictureService.uploadPicture(url, uploadPictureRequest, loginUser);
         return ResultUtils.success(pictureVO);
     }
 
@@ -93,16 +91,23 @@ public class PictureController {
         return ResultUtils.success(pictureVO);
     }
 
-    @PostMapping("/get/list")
-    public BaseResponse<List<PictureVO>> getPictureList(@RequestBody PictureQueryRequest pictureQueryRequest,
+    @PostMapping("/list/page/vo")
+    public BaseResponse<Page<PictureVO>> getPictureList(@RequestBody PictureQueryRequest pictureQueryRequest,
                                                         HttpServletRequest request){
         User loginUser = userService.getLoginUser(request);
         QueryWrapper<Picture> queryWrapper = pictureService.getQueryWrapper(pictureQueryRequest, userService.isAdmin(loginUser));
 
-        List<Picture> list = pictureService.list(queryWrapper);
-        List<PictureVO> pictureVOS = pictureService.pictureListToVO(list);
+        int pageNum = pictureQueryRequest.getPageNum();
+        int pageSize = pictureQueryRequest.getPageSize();
 
-        return ResultUtils.success(pictureVOS);
+        Page<Picture> page = pictureService.page(new Page<>(pageNum, pageSize), queryWrapper);
+        List<Picture> records = page.getRecords();
+        List<PictureVO> pictureVOS = pictureService.pictureListToVO(records);
+
+        Page<PictureVO> pageVO = new Page<>(pageNum, pageSize, page.getTotal());
+        pageVO.setRecords(pictureVOS);
+
+        return ResultUtils.success(pageVO);
     }
 
     @PostMapping("/update")
@@ -158,4 +163,23 @@ public class PictureController {
         return ResultUtils.success(pictureTagCategory);
     }
 
+    @PostMapping("/review")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> reviewPicture(@RequestBody PictureReviewRequest pictureReviewRequest, HttpServletRequest request){
+        User loginUser = userService.getLoginUser(request);
+        ThrowUtils.throwIf(pictureReviewRequest == null || pictureReviewRequest.getId() == null, ErrorCode.PARAMS_ERROR);
+
+        boolean b = pictureService.reviewPicture(pictureReviewRequest, loginUser);
+        return ResultUtils.success(b);
+    }
+
+    @PostMapping("/upload/batch")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Integer> uploadPicturesByBatch(@RequestBody UploadPictureByBatchRequest uploadPictureByBatchRequest, HttpServletRequest request){
+        ThrowUtils.throwIf(uploadPictureByBatchRequest == null, ErrorCode.NULL_ERROR);
+
+        User loginUser = userService.getLoginUser(request);
+        Integer count = pictureService.graspPicturesByBatch(uploadPictureByBatchRequest, loginUser);
+        return ResultUtils.success(count);
+    }
 }
