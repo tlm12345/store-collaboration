@@ -1,18 +1,28 @@
 package com.tlm.storecollab.service.impl;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.crypto.digest.DigestUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.tlm.storecollab.common.ErrorCode;
 import com.tlm.storecollab.common.ThrowUtils;
 import com.tlm.storecollab.config.CosClientConfig;
+import com.tlm.storecollab.constant.CacheConstant;
 import com.tlm.storecollab.constant.PictureConstant;
 import com.tlm.storecollab.exception.BusinessException;
 import com.tlm.storecollab.manager.upload.PictureUpload;
@@ -36,6 +46,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -62,6 +73,14 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Resource
     private UrlUpload urlUpload;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+
+    Cache<String, String> LOCAL_CACHE = Caffeine.newBuilder()
+            .maximumSize(10_000)
+            .expireAfterWrite(Duration.ofMinutes(5))
+            .build();
 
 
     @Override
@@ -174,23 +193,25 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
 
         QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
-        queryWrapper.like(StrUtil.isNotBlank(searchText), "name", searchText);
         queryWrapper.like(StrUtil.isNotBlank(name), "name", name);
         queryWrapper.like(StrUtil.isNotBlank(introduction), "introduction", introduction);
         queryWrapper.eq(StrUtil.isNotBlank(category), "category", category);
         // 拼接标签查询条件
-        queryWrapper.and(eq -> {
-            if (tags != null){
+        if (tags != null){
+            queryWrapper.and(eq -> {
                 tags.forEach(tag -> {
                     eq.like("tags", "\"" + tag + "\"");
                 });
-            }
-        });
+            });
+        }
+
         if (isAdmin) {
-            queryWrapper.and(eq -> eq.like("name", searchText).like("introduction", searchText));
+            if (StrUtil.isNotBlank(searchText)){
+                queryWrapper.and(eq -> eq.like( "name", searchText).like("introduction", searchText));
+            }
         }else {
             // 不是管理员，则只能查看到，审核通过的图片
-            queryWrapper.eq("reviewStatus", PictureReviewStatusEnum.PASS.getValue());
+            queryWrapper.eq("viewStatus", PictureReviewStatusEnum.PASS.getValue());
         }
         queryWrapper.ge(minPicSize != null, "picSize", minPicSize);
         queryWrapper.le(maxPicSize != null, "picSize", maxPicSize);
@@ -211,7 +232,12 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
         List<PictureVO> picVOList = pictureList.stream().map(PictureVO::objToVo).collect(Collectors.toList());
         Set<Long> userIdSet = picVOList.stream().map(PictureVO::getUserId).collect(Collectors.toSet());
-        List<User> userList = userService.list(new QueryWrapper<User>().in("userId", userIdSet));
+        List<User> userList = null;
+        if (CollUtil.isEmpty(userIdSet)){
+            return picVOList;
+        }else {
+            userList = userService.list(new QueryWrapper<User>().in("id", userIdSet));
+        }
         Map<Long, List<User>> id2UserMap = userList.stream().collect(Collectors.groupingBy(User::getId));
         picVOList.forEach(picVO -> {
             Long userId = picVO.getUserId();
@@ -315,6 +341,61 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         }
         // 返回成功上传的图片数
         return amountSuccess;
+    }
+
+    @Override
+    public Page<PictureVO> getPictureVOListFromCache(PictureQueryRequest pictureQueryRequest, User loginUser) {
+        // 校验参数不为空
+        ThrowUtils.throwIf(pictureQueryRequest == null, ErrorCode.NULL_ERROR);
+
+        // 判断是否为管理员
+        Boolean isAdmin = userService.isAdmin(loginUser);
+
+        // 将查询条件JSON序列化, 同时将isAdmin拼接在json字符串后，以区别管理员缓存和普通用户缓存
+        String s = JSONUtil.toJsonStr(pictureQueryRequest);
+        String queryKey = s + isAdmin;
+        // 使用md5对查询条件进行压缩，以作为查询key来节省空间
+        byte[] bytes = DigestUtil.md5(queryKey.getBytes());
+        // 构造本地key，用于从caffiene中查询，相较于redis的key更短，减少空间占用
+        String localKey = new String(bytes);
+        // 构造查询redis的key
+        String key = String.format(CacheConstant.CACHE_FOR_PAGE_QUERY, localKey);
+        // 从本地缓存中查数据
+        String cacheValue = LOCAL_CACHE.getIfPresent(key);
+        // local cache hits
+        if (StrUtil.isNotBlank(cacheValue)){
+            return JSONUtil.toBean(cacheValue, Page.class);
+        }
+        cacheValue = stringRedisTemplate.opsForValue().get(key);
+        // remote cache hits
+        if (StrUtil.isNotBlank(cacheValue)){
+            // 更新本地缓存
+            LOCAL_CACHE.put(key, cacheValue);
+            return JSONUtil.toBean(cacheValue, Page.class);
+        }
+        // cache miss
+        QueryWrapper<Picture> queryWrapper = this.getQueryWrapper(pictureQueryRequest, isAdmin);
+
+        Page<Picture> picturePage = this.page(new Page<>(pictureQueryRequest.getPageNum(),
+                pictureQueryRequest.getPageSize()),
+                queryWrapper);
+
+        long current = picturePage.getCurrent();
+        long size = picturePage.getSize();
+        long total = picturePage.getTotal();
+        List<Picture> records = picturePage.getRecords();
+        List<PictureVO> PicVOList = records.stream().map(PictureVO::objToVo).collect(Collectors.toList());
+
+        Page<PictureVO> pictureVOPage = new Page<>(current, size, total);
+        pictureVOPage.setRecords(PicVOList);
+
+        // 将该数据缓存
+        String valueForCache = JSONUtil.toJsonStr(pictureVOPage);
+        // 构建一定范围(10-20min)内的过期时间，避免缓存雪崩
+        int randomNumber = RandomUtil.randomInt(10, 20);
+        stringRedisTemplate.opsForValue().set(key, valueForCache, randomNumber, TimeUnit.MINUTES);
+        LOCAL_CACHE.put(key, valueForCache);
+        return pictureVOPage;
     }
 }
 

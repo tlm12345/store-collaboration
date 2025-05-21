@@ -110,6 +110,16 @@ public class PictureController {
         return ResultUtils.success(pageVO);
     }
 
+    @PostMapping("/list/page/vo/cache")
+    public BaseResponse<Page<PictureVO>> getPictureListFromCache(@RequestBody PictureQueryRequest pictureQueryRequest,
+                                                        HttpServletRequest request){
+        ThrowUtils.throwIf(pictureQueryRequest == null, ErrorCode.NULL_ERROR);
+
+        Page<PictureVO> pictureVOListFromCache = pictureService.getPictureVOListFromCache(pictureQueryRequest, userService.getLoginUser(request));
+
+        return ResultUtils.success(pictureVOListFromCache);
+    }
+
     @PostMapping("/update")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> updatePicture(@RequestBody PictureUpdateRequest pictureUpdateRequest){

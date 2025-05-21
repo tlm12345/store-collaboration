@@ -1,6 +1,7 @@
 package com.tlm.storecollab.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tlm.storecollab.model.dto.picture.PictureQueryRequest;
 import com.tlm.storecollab.model.dto.picture.PictureReviewRequest;
 import com.tlm.storecollab.model.dto.picture.UploadPictureByBatchRequest;
@@ -75,5 +76,13 @@ public interface PictureService extends IService<Picture> {
      * @return
      */
     public Integer graspPicturesByBatch(UploadPictureByBatchRequest uploadPictureByBatchRequest, User loginUser);
+
+    /**
+     * 从缓存中获取图片列表,未命中，查询数据库
+     * @param pictureQueryRequest
+     * @param loginUser
+     * @return
+     */
+    public Page<PictureVO> getPictureVOListFromCache(PictureQueryRequest pictureQueryRequest, User loginUser);
 
 }

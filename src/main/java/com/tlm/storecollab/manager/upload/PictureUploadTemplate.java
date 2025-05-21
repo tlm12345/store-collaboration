@@ -1,11 +1,14 @@
 package com.tlm.storecollab.manager.upload;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.NumberUtil;
 import cn.hutool.core.util.RandomUtil;
 import com.qcloud.cos.model.PutObjectResult;
+import com.qcloud.cos.model.ciModel.persistence.CIObject;
 import com.qcloud.cos.model.ciModel.persistence.ImageInfo;
+import com.qcloud.cos.model.ciModel.persistence.ProcessResults;
 import com.tlm.storecollab.common.ErrorCode;
 import com.tlm.storecollab.config.CosClientConfig;
 import com.tlm.storecollab.exception.BusinessException;
@@ -16,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Resource;
 import java.io.File;
 import java.util.Date;
+import java.util.List;
 
 @Slf4j
 public abstract class PictureUploadTemplate {
@@ -53,6 +57,16 @@ public abstract class PictureUploadTemplate {
             PutObjectResult putObjectResult = cosManager.putPictureObject(uploadPath, file);
             // 获取图片信息对象
             ImageInfo imageInfo = putObjectResult.getCiUploadResult().getOriginalInfo().getImageInfo();
+            ProcessResults processResults = putObjectResult.getCiUploadResult().getProcessResults();
+            List<CIObject> processResultList = processResults.getObjectList();
+            if (CollUtil.isNotEmpty(processResultList)) {
+                CIObject webpObject = processResultList.get(0);
+                // 有缩略图
+                if (processResultList.size() > 1){
+                    CIObject thumbnailObject = processResultList.get(1);
+                    return buildUploadPictureResult(originalFilename, webpObject, thumbnailObject);
+                }
+            }
             return buildUploadPictureResult(imageInfo, uploadPath, originalFilename, file);
         } catch (Exception e) {
             log.error("图片上传到对象存储失败", e);
@@ -105,6 +119,24 @@ public abstract class PictureUploadTemplate {
         uploadPictureResult.setPicHeight(picHeight);
         uploadPictureResult.setPicScale(picScale);
         uploadPictureResult.setPicFormat(imageInfo.getFormat());
+        // 返回可访问的地址
+        return uploadPictureResult;
+    }
+
+    private UploadPictureResult buildUploadPictureResult(String originalFilename, CIObject compressedObj, CIObject thumbnailObj) {
+        // 计算宽高
+        int picWidth = compressedObj.getWidth();
+        int picHeight = compressedObj.getHeight();
+        double picScale = NumberUtil.round(picWidth * 1.0 / picHeight, 2).doubleValue();
+        // 封装返回结果
+        UploadPictureResult uploadPictureResult = new UploadPictureResult();
+        uploadPictureResult.setUrl(cosClientConfig.getHost() + "/" + compressedObj.getKey());
+        uploadPictureResult.setPicName(FileUtil.mainName(originalFilename));
+        uploadPictureResult.setPicSize(Long.valueOf(compressedObj.getSize()));
+        uploadPictureResult.setPicWidth(picWidth);
+        uploadPictureResult.setPicHeight(picHeight);
+        uploadPictureResult.setPicScale(picScale);
+        uploadPictureResult.setPicFormat(compressedObj.getFormat());
         // 返回可访问的地址
         return uploadPictureResult;
     }
