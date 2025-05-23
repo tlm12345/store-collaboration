@@ -2,6 +2,9 @@ server:
   port: 8080
   servlet:
     context-path: /api
+    session:
+      cookie:
+        max-age: 2592000
 
 spring:
   application:
@@ -11,12 +14,19 @@ spring:
     username: root
     password: 1234
     url: jdbc:mysql://localhost:3306/store_cop
+  redis:
+    host: 127.0.0.1
+    port: 6379
+    database: 0
+    timeout: 5000
+  session:
+    store-type: redis
+    timeout: 2592000
 
 mybatis-plus:
   configuration:
     # MyBatis 配置
     map-underscore-to-camel-case: false
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     # 全局配置
     db-config:

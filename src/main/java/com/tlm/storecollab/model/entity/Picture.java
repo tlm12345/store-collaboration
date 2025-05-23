@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
+
+import java.io.Serializable;
 import java.util.Date;
 import lombok.Data;
 
@@ -13,7 +15,7 @@ import lombok.Data;
  */
 @TableName(value ="picture")
 @Data
-public class Picture {
+public class Picture implements Serializable {
     /**
      * id
      */
@@ -24,6 +26,11 @@ public class Picture {
      * 图片 url
      */
     private String url;
+
+    /**
+     * 原始图片url
+     */
+    private String originalUrl;
 
     /**
      * 图片名称

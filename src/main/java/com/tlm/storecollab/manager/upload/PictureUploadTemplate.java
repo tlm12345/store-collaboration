@@ -9,6 +9,7 @@ import com.qcloud.cos.model.PutObjectResult;
 import com.qcloud.cos.model.ciModel.persistence.CIObject;
 import com.qcloud.cos.model.ciModel.persistence.ImageInfo;
 import com.qcloud.cos.model.ciModel.persistence.ProcessResults;
+import com.qcloud.cos.transfer.Upload;
 import com.tlm.storecollab.common.ErrorCode;
 import com.tlm.storecollab.config.CosClientConfig;
 import com.tlm.storecollab.exception.BusinessException;
@@ -47,7 +48,7 @@ public abstract class PictureUploadTemplate {
         // 自己拼接文件上传路径，而不是使用原始文件名称，可以增强安全性
         String uploadFilename = String.format("%s_%s.%s", DateUtil.formatDate(new Date()), uuid,
                 FileUtil.getSuffix(originalFilename));
-        String uploadPath = String.format("/%s/%s", uploadPathPrefix, uploadFilename);
+        String uploadPath = String.format("%s/%s", uploadPathPrefix, uploadFilename);
         File file = null;
         try {
             // 创建临时文件
@@ -64,10 +65,11 @@ public abstract class PictureUploadTemplate {
                 // 有缩略图
                 if (processResultList.size() > 1){
                     CIObject thumbnailObject = processResultList.get(1);
-                    return buildUploadPictureResult(originalFilename, webpObject, thumbnailObject);
+                    return buildUploadPictureResult(originalFilename, webpObject, thumbnailObject, uploadPath);
                 }
+                return buildUploadPictureResult(imageInfo, webpObject, uploadPath, originalFilename);
             }
-            return buildUploadPictureResult(imageInfo, uploadPath, originalFilename, file);
+            return buildUploadPictureResult(imageInfo, uploadPath, file);
         } catch (Exception e) {
             log.error("图片上传到对象存储失败", e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "上传失败");
@@ -100,30 +102,50 @@ public abstract class PictureUploadTemplate {
     /**
      * 构建上传图片结果
      * @param imageInfo
+     * @param compressedObj
      * @param uploadPath
      * @param originalFilename
-     * @param file
      * @return
      */
-    private UploadPictureResult buildUploadPictureResult(ImageInfo imageInfo, String uploadPath, String originalFilename, File file) {
-        // 计算宽高
-        int picWidth = imageInfo.getWidth();
-        int picHeight = imageInfo.getHeight();
-        double picScale = NumberUtil.round(picWidth * 1.0 / picHeight, 2).doubleValue();
-        // 封装返回结果
-        UploadPictureResult uploadPictureResult = new UploadPictureResult();
-        uploadPictureResult.setUrl(cosClientConfig.getHost() + "/" + uploadPath);
-        uploadPictureResult.setPicName(FileUtil.mainName(originalFilename));
-        uploadPictureResult.setPicSize(FileUtil.size(file));
-        uploadPictureResult.setPicWidth(picWidth);
-        uploadPictureResult.setPicHeight(picHeight);
-        uploadPictureResult.setPicScale(picScale);
-        uploadPictureResult.setPicFormat(imageInfo.getFormat());
+    private UploadPictureResult buildUploadPictureResult(ImageInfo imageInfo, CIObject compressedObj, String uploadPath, String originalFilename) {
+        UploadPictureResult uploadPictureResult = setUploadPictureResultCertainAttr(originalFilename, compressedObj, uploadPath);
+        uploadPictureResult.setThumbnailUrl("");
         // 返回可访问的地址
         return uploadPictureResult;
     }
 
-    private UploadPictureResult buildUploadPictureResult(String originalFilename, CIObject compressedObj, CIObject thumbnailObj) {
+    private UploadPictureResult buildUploadPictureResult(String originalFilename, CIObject compressedObj, CIObject thumbnailObj, String uploadPath) {
+        UploadPictureResult uploadPictureResult = setUploadPictureResultCertainAttr(originalFilename, compressedObj, uploadPath);
+        uploadPictureResult.setThumbnailUrl(cosClientConfig.getHost() + "/" + thumbnailObj.getKey());
+        // 返回可访问的地址
+        return uploadPictureResult;
+    }
+
+    private UploadPictureResult buildUploadPictureResult(ImageInfo imageInfo, String uploadPath, File file) {
+        UploadPictureResult uploadPictureResult = new UploadPictureResult();
+
+        // 计算宽高
+        int picWidth = imageInfo.getWidth();
+        int picHeight = imageInfo.getHeight();
+        double picScale = NumberUtil.round(picWidth * 1.0 / picHeight, 2).doubleValue();
+
+        uploadPictureResult.setUrl("");
+        uploadPictureResult.setThumbnailUrl("");
+        uploadPictureResult.setOriginalUrl(cosClientConfig.getHost() + "/" + uploadPath);
+        uploadPictureResult.setPicName(FileUtil.mainName(uploadPath));
+        uploadPictureResult.setPicSize(FileUtil.size(file));
+        uploadPictureResult.setPicWidth(imageInfo.getWidth());
+        uploadPictureResult.setPicHeight(imageInfo.getHeight());
+        uploadPictureResult.setPicScale(picScale);
+        uploadPictureResult.setPicFormat(FileUtil.extName(uploadPath));
+        uploadPictureResult.setPicColor(imageInfo.getAve());
+
+        // 返回可访问的地址
+        return uploadPictureResult;
+    }
+
+
+    private UploadPictureResult setUploadPictureResultCertainAttr(String originalFilename, CIObject compressedObj, String uploadPath) {
         // 计算宽高
         int picWidth = compressedObj.getWidth();
         int picHeight = compressedObj.getHeight();
@@ -131,16 +153,15 @@ public abstract class PictureUploadTemplate {
         // 封装返回结果
         UploadPictureResult uploadPictureResult = new UploadPictureResult();
         uploadPictureResult.setUrl(cosClientConfig.getHost() + "/" + compressedObj.getKey());
+        uploadPictureResult.setOriginalUrl(cosClientConfig.getHost() + "/" + uploadPath);
         uploadPictureResult.setPicName(FileUtil.mainName(originalFilename));
         uploadPictureResult.setPicSize(Long.valueOf(compressedObj.getSize()));
         uploadPictureResult.setPicWidth(picWidth);
         uploadPictureResult.setPicHeight(picHeight);
         uploadPictureResult.setPicScale(picScale);
-        uploadPictureResult.setPicFormat(compressedObj.getFormat());
-        // 返回可访问的地址
+        uploadPictureResult.setPicFormat(FileUtil.extName(originalFilename));
         return uploadPictureResult;
     }
-
 
 
     /**

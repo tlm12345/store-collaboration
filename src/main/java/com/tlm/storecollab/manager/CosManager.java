@@ -93,4 +93,30 @@ public class CosManager {
     public void deleteObject(String key) {
         cosClient.deleteObject(cosClientConfig.getBucket(), key);
     }
+
+    /**
+     * 生成上传路径的内部类
+     */
+    public static class UploadPathGenerator {
+
+        public static String generatePublicUploadPath(String fileName){
+            return "public/" + fileName;
+        }
+
+        public static String generatePrivateUploadPath(String fileName, Long userId){
+            return "private/" + String.valueOf(userId) + "/" + fileName;
+        }
+
+        /**
+         * 根据图片的完整路径，生成其缩略图的key以删除
+         * @param url
+         * @param ext 文件后缀， 不带.
+         * @return
+         */
+        public static String generatePublicThumbnailUploadPath(String url, String ext){
+            String fileName = FileUtil.mainName(url);
+            String format = String.format("public/%s_thumbnail.%s", fileName, ext);
+            return format;
+        }
+    }
 }

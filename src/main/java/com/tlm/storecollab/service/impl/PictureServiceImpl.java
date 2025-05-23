@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
@@ -25,6 +26,7 @@ import com.tlm.storecollab.config.CosClientConfig;
 import com.tlm.storecollab.constant.CacheConstant;
 import com.tlm.storecollab.constant.PictureConstant;
 import com.tlm.storecollab.exception.BusinessException;
+import com.tlm.storecollab.manager.CosManager;
 import com.tlm.storecollab.manager.upload.PictureUpload;
 import com.tlm.storecollab.manager.upload.PictureUploadTemplate;
 import com.tlm.storecollab.manager.upload.UrlUpload;
@@ -75,6 +77,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     private UrlUpload urlUpload;
 
     @Resource
+    private CosManager cosManager;
+
+    @Resource
     private StringRedisTemplate stringRedisTemplate;
 
     Cache<String, String> LOCAL_CACHE = Caffeine.newBuilder()
@@ -103,33 +108,41 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         if (inputSource instanceof String){
             pictureUploadTemplate = urlUpload;
         }
-        // 如果只上传图片, 创建图片记录
-        if (picId == null){
-            UploadPictureResult uploadPictureResult = pictureUploadTemplate.uploadPicture(inputSource, "public");
-            picture.setUrl(uploadPictureResult.getUrl());
-            picture.setName(uploadPictureResult.getPicName());
-            picture.setPicSize(uploadPictureResult.getPicSize());
-            picture.setPicWidth(uploadPictureResult.getPicWidth());
-            picture.setPicHeight(uploadPictureResult.getPicHeight());
-            picture.setPicScale(uploadPictureResult.getPicScale());
-            picture.setPicFormat(uploadPictureResult.getPicFormat());
-            picture.setUserId(userId);
-        }else {
-            // 如果完善图片记录
-                // 根据图片id判断，是否已在数据库中有记录
+        // 如果修改上传的图片
+        if (picId != null){
+            // 如果重新上传图片
+            // 根据图片id判断，是否已在数据库中有记录
             Picture oldPic = this.getById(picId);
-            ThrowUtils.throwIf(ObjectUtil.isEmpty(oldPic), ErrorCode.NULL_ERROR, "图片不存在(未上传过)");
             //没有， 抛异常
-                    // 有， 更新
+            ThrowUtils.throwIf(ObjectUtil.isEmpty(oldPic), ErrorCode.NULL_ERROR, "图片不存在(未上传过)");
+            // 有， 获取老图片的url，从中提取对象存储对应的key，然后进行删除操作
+            String oldUrl = oldPic.getUrl();
+            String oldOriginalUrl = oldPic.getOriginalUrl();
+            String oldUrlKey = FileUtil.getName(oldUrl);
+            String oldOriUrlKey = FileUtil.getName(oldOriginalUrl);
+            try {
+                // 删除原始图片和webp格式的图片，只残留缩略图在对象存储中
+                cosManager.deleteObject("public/" + oldUrlKey);
+                cosManager.deleteObject("public/" + oldOriUrlKey);
+            }catch (Exception e){
+                log.error("删除图片失败，key:{}", "public/" + oldOriginalUrl);
+            }
+
+            // 设置图片id，让后面的逻辑变为更新，而不是创建
             picture.setId(picId);
-            picture.setCategory(uploadPictureRequest.getCategory());
-            picture.setName(uploadPictureRequest.getName());
-            picture.setIntroduction(uploadPictureRequest.getIntroduction());
-            // 利用hutool包的JSONUtil将List<String>类型数据转为json字符串
-            List<String> tags1 = uploadPictureRequest.getTags();
-            if (tags1 == null) tags1 = Arrays.asList();
-            picture.setTags(JSONUtil.toJsonStr(tags1));
         }
+
+        // 上传图片到对象存储中
+        UploadPictureResult uploadPictureResult = pictureUploadTemplate.uploadPicture(inputSource, "public");
+        picture.setUrl(uploadPictureResult.getUrl());
+        picture.setOriginalUrl(uploadPictureResult.getOriginalUrl());
+        picture.setName(uploadPictureResult.getPicName());
+        picture.setPicSize(uploadPictureResult.getPicSize());
+        picture.setPicWidth(uploadPictureResult.getPicWidth());
+        picture.setPicHeight(uploadPictureResult.getPicHeight());
+        picture.setPicScale(uploadPictureResult.getPicScale());
+        picture.setPicFormat(uploadPictureResult.getPicFormat());
+        picture.setUserId(userId);
 
         if (userService.isAdmin(loginUser)){
             picture.setViewTime(new Date());
@@ -397,6 +410,32 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         LOCAL_CACHE.put(key, valueForCache);
         return pictureVOPage;
     }
+
+    @Override
+    public void clearPicture(Picture picture) {
+        String url = picture.getUrl();
+        String originalUrl = picture.getOriginalUrl();
+
+        String urlName = FileUtil.getName(url);
+        String originalName = FileUtil.getName(originalUrl);
+
+        cosManager.deleteObject("public/" + urlName);
+        cosManager.deleteObject("public/" + originalName);
+    }
+
+    @Override
+    public boolean removePicture(Picture picture) {
+        // 校验参数
+        ThrowUtils.throwIf(picture == null, ErrorCode.NULL_ERROR);
+
+        // 清理对象存储中的数据
+        clearPicture(picture);
+
+        // 清理数据库记录
+        return this.removeById(picture.getId());
+    }
+
+
 }
 
 

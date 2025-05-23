@@ -85,4 +85,17 @@ public interface PictureService extends IService<Picture> {
      */
     public Page<PictureVO> getPictureVOListFromCache(PictureQueryRequest pictureQueryRequest, User loginUser);
 
+    /**
+     * 删除图片
+     * @param picture
+     * @return
+     */
+    public boolean removePicture(Picture picture);
+
+    /**
+     * 清理图片记录的对象存储
+     * @param picture
+     */
+    public void clearPicture(Picture picture);
+
 }

@@ -55,3 +55,6 @@ ALTER TABLE picture
     ADD COLUMN viewMessage varchar(512) null comment '审核理由（原因）',
     ADD INDEX idx_viewer (viewer),
     ADD INDEX idx_viewMessage (viewMessage);
+
+ALTER TABLE picture
+    ADD COLUMN originalUrl varchar(512)  not null comment '原始图片url';

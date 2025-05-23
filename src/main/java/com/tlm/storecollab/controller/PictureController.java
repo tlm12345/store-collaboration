@@ -73,7 +73,7 @@ public class PictureController {
         Long userId = oldPic.getUserId();
         User loginUser = userService.getLoginUser(request);
         if (ObjectUtil.equals(userId, loginUser.getId()) || userService.isAdmin(loginUser)){
-            boolean b = pictureService.removeById(id);
+            boolean b = pictureService.removePicture(oldPic);
             ThrowUtils.throwIf(!b, ErrorCode.SYSTEM_ERROR);
         }else {
             throw new BusinessException(ErrorCode.NO_AUTH);
