@@ -15,6 +15,7 @@ public enum ErrorCode {
     PARAMS_ERROR(40000, "请求参数错误", ""),
     NULL_ERROR(40001, "请求数据为空", ""),
     FILE_TOO_BIG_ERROR(40002, "文件过大", ""),
+    PRIVATE_SPACE_HAS_EXISTS(40003, "用户私人空间已存在", ""),
     /**
      * 未登录
      */
