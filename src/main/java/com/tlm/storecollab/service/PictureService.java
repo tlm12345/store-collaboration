@@ -98,4 +98,27 @@ public interface PictureService extends IService<Picture> {
      */
     public void clearPicture(Picture picture);
 
+    /**
+     * 根据文件名生成对应的对象存储key(公共空间)
+     * @param fileName
+     * @param userId
+     * @return
+     */
+    public String generatePublicKeyForCosByFilename(String fileName, Long userId);
+
+    /**
+     * 根据文件名生成对应的对象存储key(公共空间)
+     * @param fileName
+     * @param userId
+     * @return
+     */
+    public String generatePrivateKeyForCosByFilename(String fileName, Long userId);
+
+    /**
+     * 删除私有空间图片，并释放空间
+     * @param userId
+     * @param pictureId
+     */
+    public void removePrivatePictureAndReleaseSpace(Long userId, Long pictureId);
+
 }

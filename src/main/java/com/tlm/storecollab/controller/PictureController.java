@@ -1,6 +1,7 @@
 package com.tlm.storecollab.controller;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.util.ObjUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -15,9 +16,11 @@ import com.tlm.storecollab.common.ErrorCode;
 import com.tlm.storecollab.common.ThrowUtils;
 import com.tlm.storecollab.model.dto.picture.*;
 import com.tlm.storecollab.model.entity.Picture;
+import com.tlm.storecollab.model.entity.Space;
 import com.tlm.storecollab.model.entity.User;
 import com.tlm.storecollab.model.vo.PictureVO;
 import com.tlm.storecollab.service.PictureService;
+import com.tlm.storecollab.service.SpaceService;
 import com.tlm.storecollab.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -43,6 +46,9 @@ public class PictureController {
     @Resource
     private PictureService pictureService;
 
+    @Resource
+    private SpaceService spaceService;
+
     @PostMapping("/upload")
     public BaseResponse<PictureVO> uploadPicture(@RequestPart("file") MultipartFile multipartFile,
                                                  UploadPictureRequest uploadPictureRequest,
@@ -66,13 +72,19 @@ public class PictureController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
 
-        Long id = deleteRequest.getId();
-        Picture oldPic = pictureService.getById(id);
+        Long picId = deleteRequest.getId();
+        Picture oldPic = pictureService.getById(picId);
         ThrowUtils.throwIf(oldPic == null, ErrorCode.NULL_ERROR);
 
+        Long spaceId = oldPic.getSpaceId();
         Long userId = oldPic.getUserId();
         User loginUser = userService.getLoginUser(request);
         if (ObjectUtil.equals(userId, loginUser.getId()) || userService.isAdmin(loginUser)){
+            if (ObjUtil.isNotNull(spaceId)){
+                // 如果是删除用户私有空间的图片
+                pictureService.removePrivatePictureAndReleaseSpace(loginUser.getId(), picId);
+                return ResultUtils.success(true);
+            }
             boolean b = pictureService.removePicture(oldPic);
             ThrowUtils.throwIf(!b, ErrorCode.SYSTEM_ERROR);
         }else {
@@ -95,6 +107,13 @@ public class PictureController {
     public BaseResponse<Page<PictureVO>> getPictureList(@RequestBody PictureQueryRequest pictureQueryRequest,
                                                         HttpServletRequest request){
         User loginUser = userService.getLoginUser(request);
+        // 判断是否查询私人空间的图片
+        boolean queryPirvateSpace = pictureQueryRequest.getQueryPrivateSpace();
+        if (queryPirvateSpace){
+            // 设置请求为当前登录用户的私人空间id
+            Space space = spaceService.lambdaQuery().eq(Space::getUserId, loginUser.getId()).one();
+            pictureQueryRequest.setSpaceId(space.getId());
+        }
         QueryWrapper<Picture> queryWrapper = pictureService.getQueryWrapper(pictureQueryRequest, userService.isAdmin(loginUser));
 
         int pageNum = pictureQueryRequest.getPageNum();

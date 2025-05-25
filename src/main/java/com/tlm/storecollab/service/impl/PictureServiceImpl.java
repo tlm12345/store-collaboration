@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.util.ObjUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
@@ -36,12 +37,14 @@ import com.tlm.storecollab.model.dto.picture.PictureReviewRequest;
 import com.tlm.storecollab.model.dto.picture.UploadPictureByBatchRequest;
 import com.tlm.storecollab.model.dto.picture.UploadPictureRequest;
 import com.tlm.storecollab.model.entity.Picture;
+import com.tlm.storecollab.model.entity.Space;
 import com.tlm.storecollab.model.entity.User;
 import com.tlm.storecollab.model.enums.PictureReviewStatusEnum;
 import com.tlm.storecollab.model.vo.PictureVO;
 import com.tlm.storecollab.model.vo.UserVO;
 import com.tlm.storecollab.service.PictureService;
 import com.tlm.storecollab.mapper.PictureMapper;
+import com.tlm.storecollab.service.SpaceService;
 import com.tlm.storecollab.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
@@ -50,6 +53,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
@@ -80,6 +84,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     private CosManager cosManager;
 
     @Resource
+    private SpaceService spaceService;
+
+    @Resource
     private StringRedisTemplate stringRedisTemplate;
 
     Cache<String, String> LOCAL_CACHE = Caffeine.newBuilder()
@@ -89,6 +96,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
 
     @Override
+    @Transactional
     public PictureVO uploadPicture(Object inputSource, UploadPictureRequest uploadPictureRequest, User loginUser) {
         // 校验登录
         ThrowUtils.throwIf(ObjectUtil.isEmpty(loginUser), ErrorCode.NOT_LOGIN);
@@ -104,13 +112,25 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         Long userId = loginUser.getId();
         Picture picture = new Picture();
 
+        // 根据用户是否上传spaceId参数，判断用户是对公共空间还是私有空间操作
+        Long spaceId = uploadPictureRequest.getSpaceId();
+        boolean opPrivate = ObjUtil.isNotNull(spaceId);
+        // 如果对私有空间操作，查出私有空间
+        Space space = null;
+        if (opPrivate){
+            space = spaceService.getById(spaceId);
+            // 校验该空间是否是用户的私有空间
+            ThrowUtils.throwIf(!ObjUtil.equals(space.getUserId(), userId), ErrorCode.NO_AUTH);
+            // 校验该空间是否还有剩余容量
+            spaceService.validPrivateSpaceIsFree(space);
+        }
+
         PictureUploadTemplate pictureUploadTemplate = pictureUpload;
         if (inputSource instanceof String){
             pictureUploadTemplate = urlUpload;
         }
         // 如果修改上传的图片
         if (picId != null){
-            // 如果重新上传图片
             // 根据图片id判断，是否已在数据库中有记录
             Picture oldPic = this.getById(picId);
             //没有， 抛异常
@@ -122,8 +142,11 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             String oldOriUrlKey = FileUtil.getName(oldOriginalUrl);
             try {
                 // 删除原始图片和webp格式的图片，只残留缩略图在对象存储中
-                cosManager.deleteObject("public/" + oldUrlKey);
-                cosManager.deleteObject("public/" + oldOriUrlKey);
+                if (ObjUtil.isNotNull(oldPic.getSpaceId())){
+                    // 如果更新的是私人空间的图片
+                    spaceService.updateSpaceCapacityInfo(oldPic, space, false);
+                }
+                this.clearPicture(oldPic);
             }catch (Exception e){
                 log.error("删除图片失败，key:{}", "public/" + oldOriginalUrl);
             }
@@ -143,6 +166,11 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         picture.setPicScale(uploadPictureResult.getPicScale());
         picture.setPicFormat(uploadPictureResult.getPicFormat());
         picture.setUserId(userId);
+
+        if (opPrivate){
+            picture.setSpaceId(spaceId);
+            spaceService.updateSpaceCapacityInfo(picture, space, true);
+        }
 
         if (userService.isAdmin(loginUser)){
             picture.setViewTime(new Date());
@@ -203,6 +231,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         String picFormat = pictureQueryRequest.getPicFormat();
         Long userId = pictureQueryRequest.getUserId();
         Date createTime = pictureQueryRequest.getCreateTime();
+        Boolean queryPrivateSpace = pictureQueryRequest.getQueryPrivateSpace();
+        Long spaceId = pictureQueryRequest.getSpaceId();
 
 
         QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
@@ -236,6 +266,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         // 创建时间在createTime之后
         queryWrapper.ge(createTime != null, "createTime", createTime);
 
+        // 设置查询空间id
+        if (queryPrivateSpace){
+            queryWrapper.eq("spaceId", spaceId);
+        }
         return queryWrapper;
     }
 
@@ -413,14 +447,34 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     @Override
     public void clearPicture(Picture picture) {
+        Long userId = picture.getUserId();
+        Long spaceId = picture.getSpaceId();
         String url = picture.getUrl();
         String originalUrl = picture.getOriginalUrl();
 
         String urlName = FileUtil.getName(url);
         String originalName = FileUtil.getName(originalUrl);
 
-        cosManager.deleteObject("public/" + urlName);
-        cosManager.deleteObject("public/" + originalName);
+        if (ObjUtil.isNull(spaceId)){
+            cosManager.deleteObject(generatePublicKeyForCosByFilename(urlName, userId));
+            cosManager.deleteObject(generatePublicKeyForCosByFilename(originalName, userId));
+        }else {
+            cosManager.deleteObject(generatePrivateKeyForCosByFilename(urlName, userId));
+            cosManager.deleteObject(generatePrivateKeyForCosByFilename(originalName, userId));
+        }
+    }
+
+    @Override
+    public String generatePublicKeyForCosByFilename(String fileName, Long userId) {
+        ThrowUtils.throwIf(StrUtil.isBlank(fileName) || ObjUtil.isNull(userId), ErrorCode.SYSTEM_ERROR);
+        return "public/" + userId + "/" + fileName;
+    }
+
+    @Override
+    public String generatePrivateKeyForCosByFilename(String fileName, Long userId) {
+        ThrowUtils.throwIf(StrUtil.isBlank(fileName) || ObjUtil.isNull(userId), ErrorCode.SYSTEM_ERROR);
+        return "private/" + userId + "/" + fileName;
+
     }
 
     @Override
@@ -433,6 +487,26 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
         // 清理数据库记录
         return this.removeById(picture.getId());
+    }
+
+    @Override
+    public void removePrivatePictureAndReleaseSpace(Long userId, Long pictureId) {
+        // 查询图片是否存在
+        Picture pic = this.getById(pictureId);
+        ThrowUtils.throwIf(pic == null, ErrorCode.SYSTEM_ERROR);
+
+        // 查询用户私人空间是否存在
+        Space space = spaceService.lambdaQuery().eq(Space::getUserId, userId).one();
+        ThrowUtils.throwIf(space == null, ErrorCode.SYSTEM_ERROR);
+
+        // 校验该图片所在私人空间是否与用户创建的私人空间一致
+        ThrowUtils.throwIf(!ObjUtil.equals(pic.getSpaceId(), space.getId()), ErrorCode.NO_AUTH, "不能删除其他人的图片");
+
+
+        spaceService.updateSpaceCapacityInfo(pic, space, false);
+
+        // 释放空间,删除图片表记录
+        this.removePicture(pic);
     }
 
 

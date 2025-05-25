@@ -74,4 +74,13 @@ public class PictureQueryRequest extends PageRequest implements Serializable{
      * 创建时间
      */
     private Date createTime;
+
+    /**
+     * 是否查看自己私人空间的图片
+     */
+    private Boolean queryPrivateSpace;
+    /**
+     * 私人空间id
+     */
+    private Long spaceId;
 }

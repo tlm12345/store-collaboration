@@ -1,13 +1,18 @@
 package com.tlm.storecollab.service.impl;
 
+import cn.hutool.core.util.ObjUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.tlm.storecollab.common.ErrorCode;
 import com.tlm.storecollab.common.ThrowUtils;
 import com.tlm.storecollab.model.dto.space.SpaceCreateRequest;
+import com.tlm.storecollab.model.dto.space.SpaceUpdateRequest;
+import com.tlm.storecollab.model.entity.Picture;
 import com.tlm.storecollab.model.entity.Space;
 import com.tlm.storecollab.model.entity.User;
 import com.tlm.storecollab.model.enums.SpaceLevelEnum;
+import com.tlm.storecollab.service.PictureService;
 import com.tlm.storecollab.service.SpaceService;
 import com.tlm.storecollab.mapper.SpaceMapper;
 import com.tlm.storecollab.service.UserService;
@@ -26,6 +31,7 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
 
     @Resource
     private UserService userService;
+
 
 
     @Override
@@ -69,6 +75,61 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         ThrowUtils.throwIf(!save, ErrorCode.SYSTEM_ERROR);
 //        5. 返回成功创建响应
         return space.getId();
+    }
+
+    @Override
+    public boolean validPrivateSpaceIsFree(Long userId) {
+        Space space = this.lambdaQuery()
+                .eq(Space::getUserId, userId).getEntity();
+        return validPrivateSpaceIsFree(space);
+    }
+
+    @Override
+    public boolean validPrivateSpaceIsFree(Space space) {
+        Long spaceMaxCount = space.getSpaceMaxCount();
+        Long spaceMaxSize = space.getSpaceMaxSize();
+        Long spaceSizeUsed = space.getSpaceSizeUsed();
+        Long spaceTotalCount = space.getSpaceTotalCount();
+
+        return (spaceSizeUsed < spaceMaxSize) || (spaceTotalCount < spaceMaxCount);
+    }
+
+
+    public void updateSpaceCapacityInfo(Picture pic, Space space, boolean isAdd) {
+        // 获取图片大小
+        Long picSize = pic.getPicSize();
+        // 更新用户私人空间容量信息
+        Long spaceTotalCount = space.getSpaceTotalCount();
+        Long spaceSizeUsed = space.getSpaceSizeUsed();
+
+        // 构建一个新的space，只更新发生改变的值
+        Space newSpace = new Space();
+        newSpace.setId(space.getId());
+
+        if (isAdd){
+            newSpace.setSpaceSizeUsed(spaceSizeUsed + picSize);
+            newSpace.setSpaceTotalCount(spaceTotalCount + 1);
+
+            space.setSpaceSizeUsed(spaceSizeUsed + picSize);
+            space.setSpaceTotalCount(spaceTotalCount + 1);
+        }else {
+            newSpace.setSpaceSizeUsed(spaceSizeUsed - picSize);
+            newSpace.setSpaceTotalCount(spaceTotalCount - 1);
+
+            space.setSpaceSizeUsed(spaceSizeUsed - picSize);
+            space.setSpaceTotalCount(spaceTotalCount - 1);
+        }
+
+        boolean b = this.updateById(newSpace);
+        ThrowUtils.throwIf(!b, ErrorCode.SYSTEM_ERROR);
+    }
+
+    @Override
+    public void validUpdateSpaceRequest(SpaceUpdateRequest spaceUpdateRequest) {
+        Long id = spaceUpdateRequest.getId();
+        String spaceName = spaceUpdateRequest.getSpaceName();
+
+        ThrowUtils.throwIf(spaceName.length() < 1 || spaceName.length() > 30, ErrorCode.PARAMS_ERROR, "空间名称不能为空或者过长");
     }
 }
 

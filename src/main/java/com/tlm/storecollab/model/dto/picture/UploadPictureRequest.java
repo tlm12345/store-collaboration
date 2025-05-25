@@ -40,4 +40,9 @@ public class UploadPictureRequest {
      */
     private List<String> tags;
 
+    /**
+     * 空间id
+     */
+    private Long spaceId;
+
 }
