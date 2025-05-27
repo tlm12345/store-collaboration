@@ -1,5 +1,7 @@
 package com.tlm.storecollab.model.vo;
 
+import cn.hutool.core.bean.BeanUtil;
+import com.tlm.storecollab.model.entity.User;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -47,4 +49,13 @@ public class UserVO implements Serializable {
     private Date createTime;
 
     private static final long serialVersionUID = 1L;
+
+    public static UserVO objToVO(User user){
+        if (user == null) return null;
+
+        UserVO res = new UserVO();
+        BeanUtil.copyProperties(user, res);
+
+        return res;
+    }
 }

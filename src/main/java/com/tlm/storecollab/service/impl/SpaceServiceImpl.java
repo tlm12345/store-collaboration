@@ -129,7 +129,7 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         Long id = spaceUpdateRequest.getId();
         String spaceName = spaceUpdateRequest.getSpaceName();
 
-        ThrowUtils.throwIf(spaceName.length() < 1 || spaceName.length() > 30, ErrorCode.PARAMS_ERROR, "空间名称不能为空或者过长");
+        ThrowUtils.throwIf(spaceName.isEmpty() || spaceName.length() > 30, ErrorCode.PARAMS_ERROR, "空间名称不能为空或者过长");
     }
 }
 

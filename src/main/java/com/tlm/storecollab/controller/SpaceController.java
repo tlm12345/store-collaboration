@@ -19,6 +19,8 @@ import com.tlm.storecollab.model.entity.Space;
 import com.tlm.storecollab.model.entity.User;
 import com.tlm.storecollab.model.enums.SpaceLevelEnum;
 import com.tlm.storecollab.model.vo.PictureVO;
+import com.tlm.storecollab.model.vo.SpaceVO;
+import com.tlm.storecollab.model.vo.UserVO;
 import com.tlm.storecollab.service.PictureService;
 import com.tlm.storecollab.service.SpaceService;
 import com.tlm.storecollab.service.UserService;
@@ -148,6 +150,17 @@ public class SpaceController {
         return ResultUtils.success(true);
     }
 
+    @GetMapping("/get")
+    public BaseResponse<SpaceVO> getSpaceById(@RequestParam("id") Long id, HttpServletRequest request){
+        ThrowUtils.throwIf(id == null, ErrorCode.PARAMS_ERROR);
 
+        Space space = spaceService.getById(id);
+        Long userId = space.getUserId();
+        User user = userService.getById(userId);
 
+        SpaceVO spaceVO = SpaceVO.objToVO(space);
+        spaceVO.setUserVO(UserVO.objToVO(user));
+
+        return ResultUtils.success(spaceVO);
+    }
 }
