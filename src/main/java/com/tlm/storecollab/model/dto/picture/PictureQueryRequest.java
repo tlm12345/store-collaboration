@@ -66,6 +66,11 @@ public class PictureQueryRequest extends PageRequest implements Serializable{
     private String picFormat;
 
     /**
+     * 图片色调
+     */
+    private String picAve;
+
+    /**
      * 创建用户 id
      */
     private Long userId;
@@ -74,6 +79,16 @@ public class PictureQueryRequest extends PageRequest implements Serializable{
      * 创建时间
      */
     private Date createTime;
+
+    /**
+     * 编辑时间查找(上界)
+     */
+    private Date startEditTime;
+
+    /**
+     * 编辑时间查找(下界)
+     */
+    private Date endEditTime;
 
     /**
      * 是否查看自己私人空间的图片

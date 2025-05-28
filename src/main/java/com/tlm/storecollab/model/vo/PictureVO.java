@@ -1,6 +1,7 @@
 package com.tlm.storecollab.model.vo;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
@@ -8,7 +9,10 @@ import com.tlm.storecollab.model.entity.Picture;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * 图片视图
@@ -72,6 +76,11 @@ public class PictureVO implements Serializable {
     private String picFormat;
 
     /**
+     * 图片主色调
+     */
+    private String picAve;
+
+    /**
      * 创建用户 id
      */
     private Long userId;
@@ -95,5 +104,17 @@ public class PictureVO implements Serializable {
         PictureVO res = new PictureVO();
         BeanUtil.copyProperties(picture, res);
         return res;
+    }
+
+    public static List<PictureVO> objToVo(List<Picture> pictures) {
+        if (CollUtil.isEmpty(pictures)) return new ArrayList<>();
+        LinkedList<PictureVO> picVOList = new LinkedList<>();
+        for (Picture picture : pictures) {
+            PictureVO res = new PictureVO();
+            BeanUtil.copyProperties(picture, res);
+
+            picVOList.add(res);
+        }
+        return picVOList;
     }
 }

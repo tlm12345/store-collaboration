@@ -3,6 +3,10 @@ package com.tlm.storecollab.api.imagesearch.sub;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 
+/**
+ * 获取搜狗以图搜图的接口
+ */
+@Deprecated
 public class GetSouGouInterfaceApi {
 
     public static String getSouGouInterfaceUrl(String imageUrl) {

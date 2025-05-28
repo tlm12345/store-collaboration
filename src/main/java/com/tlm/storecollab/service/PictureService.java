@@ -2,10 +2,7 @@ package com.tlm.storecollab.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.tlm.storecollab.model.dto.picture.PictureQueryRequest;
-import com.tlm.storecollab.model.dto.picture.PictureReviewRequest;
-import com.tlm.storecollab.model.dto.picture.UploadPictureByBatchRequest;
-import com.tlm.storecollab.model.dto.picture.UploadPictureRequest;
+import com.tlm.storecollab.model.dto.picture.*;
 import com.tlm.storecollab.model.entity.Picture;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.tlm.storecollab.model.entity.User;
@@ -120,5 +117,15 @@ public interface PictureService extends IService<Picture> {
      * @param pictureId
      */
     public void removePrivatePictureAndReleaseSpace(Long userId, Long pictureId);
+
+    /**
+     * 根据颜色搜索图片
+     */
+    public List<PictureVO> searchPictureByColor(SearchPictureByColorRequest searchPictureByColorRequest, User loginUser);
+
+    /**
+     * 批量编辑图片
+     */
+    public boolean editPictureByBatch(PictureEditByBatchRequest pictureEditByBatchRequest, User loginUser);
 
 }

@@ -7,6 +7,8 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tlm.storecollab.annotation.AuthCheck;
+import com.tlm.storecollab.api.imagesearch.ImageSearchFacade;
+import com.tlm.storecollab.api.imagesearch.model.ImageSearchResult;
 import com.tlm.storecollab.common.BaseResponse;
 import com.tlm.storecollab.common.DeleteRequest;
 import com.tlm.storecollab.common.ResultUtils;
@@ -103,8 +105,32 @@ public class PictureController {
         return ResultUtils.success(pictureVO);
     }
 
+    /**
+     * 根据颜色搜索图片
+     * @param searchPictureByColorRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/search/byColor")
+    public BaseResponse<List<PictureVO>> searchImageByColor(@RequestBody SearchPictureByColorRequest searchPictureByColorRequest, HttpServletRequest request) {
+        ThrowUtils.throwIf(searchPictureByColorRequest == null || StrUtil.isBlank(searchPictureByColorRequest.getPicAve()), ErrorCode.NULL_ERROR);
+        User loginUser = userService.getLoginUser(request);
+        List<PictureVO> imageSearchResults = pictureService.searchPictureByColor(searchPictureByColorRequest, loginUser);
+        return ResultUtils.success(imageSearchResults);
+    }
+
+    /**
+     * **批量**修改图片信息
+     */
+    @PostMapping("/edit/batch")
+    public BaseResponse<Boolean> editPictureByBatch(@RequestBody PictureEditByBatchRequest pictureEditByBatchRequest, HttpServletRequest request) {
+        ThrowUtils.throwIf(pictureEditByBatchRequest == null || pictureEditByBatchRequest.getPictureIdList() == null, ErrorCode.PARAMS_ERROR);
+        boolean b = pictureService.editPictureByBatch(pictureEditByBatchRequest, userService.getLoginUser(request));
+        return ResultUtils.success(b);
+    }
+
     @PostMapping("/list/page/vo")
-    public BaseResponse<Page<PictureVO>> getPictureList(@RequestBody PictureQueryRequest pictureQueryRequest,
+    public BaseResponse<Page<PictureVO>> getPicturePage(@RequestBody PictureQueryRequest pictureQueryRequest,
                                                         HttpServletRequest request){
         User loginUser = userService.getLoginUser(request);
         // 判断是否查询私人空间的图片
@@ -137,6 +163,17 @@ public class PictureController {
         Page<PictureVO> pictureVOListFromCache = pictureService.getPictureVOListFromCache(pictureQueryRequest, userService.getLoginUser(request));
 
         return ResultUtils.success(pictureVOListFromCache);
+    }
+    @GetMapping("/search/byUrl")
+    public BaseResponse<List<ImageSearchResult>> searchImageByImageUrl(@RequestParam String url, HttpServletRequest request){
+        // 校验查询参数
+        ThrowUtils.throwIf(StrUtil.isBlank(url), ErrorCode.PARAMS_ERROR);
+        // 用户必须登录
+        User loginUser = userService.getLoginUser(request);
+        ThrowUtils.throwIf(loginUser == null, ErrorCode.NOT_LOGIN);
+
+        List<ImageSearchResult> imageSearchResults = ImageSearchFacade.getImageSearchResult(url);
+        return ResultUtils.success(imageSearchResults);
     }
 
     @PostMapping("/update")

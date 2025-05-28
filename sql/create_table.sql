@@ -85,3 +85,7 @@ ALTER TABLE picture
 
 -- 创建索引
 CREATE INDEX idx_spaceId ON picture (spaceId);
+
+-- 为图片表添加picAve字段
+ALTER TABLE picture
+    ADD COLUMN picAve varchar(32) null comment '图片平均色(主色调)';

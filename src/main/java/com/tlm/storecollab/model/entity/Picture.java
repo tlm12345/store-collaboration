@@ -78,6 +78,13 @@ public class Picture implements Serializable {
     private String picFormat;
 
     /**
+     * 图片主色调
+     * 0xRRGGBB
+     * example: 0x FFAA43 => 255 170 67
+     */
+    private String picAve;
+
+    /**
      * 创建用户 id
      */
     private Long userId;

@@ -53,7 +53,7 @@ public abstract class PictureUploadTemplate {
         try {
             // 创建临时文件
             file = File.createTempFile(uploadPath, null);
-            // todo 下载文件
+            // 下载文件
             downloadFile(inputSource, file);
             PutObjectResult putObjectResult = cosManager.putPictureObject(uploadPath, file);
             // 获取图片信息对象
@@ -65,7 +65,7 @@ public abstract class PictureUploadTemplate {
                 // 有缩略图
                 if (processResultList.size() > 1){
                     CIObject thumbnailObject = processResultList.get(1);
-                    return buildUploadPictureResult(originalFilename, webpObject, thumbnailObject, uploadPath);
+                    return buildUploadPictureResult(imageInfo, originalFilename, webpObject, thumbnailObject, uploadPath);
                 }
                 return buildUploadPictureResult(imageInfo, webpObject, uploadPath, originalFilename);
             }
@@ -108,14 +108,14 @@ public abstract class PictureUploadTemplate {
      * @return
      */
     private UploadPictureResult buildUploadPictureResult(ImageInfo imageInfo, CIObject compressedObj, String uploadPath, String originalFilename) {
-        UploadPictureResult uploadPictureResult = setUploadPictureResultCertainAttr(originalFilename, compressedObj, uploadPath);
+        UploadPictureResult uploadPictureResult = setUploadPictureResultCertainAttr(imageInfo, originalFilename, compressedObj, uploadPath);
         uploadPictureResult.setThumbnailUrl("");
         // 返回可访问的地址
         return uploadPictureResult;
     }
 
-    private UploadPictureResult buildUploadPictureResult(String originalFilename, CIObject compressedObj, CIObject thumbnailObj, String uploadPath) {
-        UploadPictureResult uploadPictureResult = setUploadPictureResultCertainAttr(originalFilename, compressedObj, uploadPath);
+    private UploadPictureResult buildUploadPictureResult(ImageInfo imageInfo, String originalFilename, CIObject compressedObj, CIObject thumbnailObj, String uploadPath) {
+        UploadPictureResult uploadPictureResult = setUploadPictureResultCertainAttr(imageInfo, originalFilename, compressedObj, uploadPath);
         uploadPictureResult.setThumbnailUrl(cosClientConfig.getHost() + "/" + thumbnailObj.getKey());
         // 返回可访问的地址
         return uploadPictureResult;
@@ -138,14 +138,14 @@ public abstract class PictureUploadTemplate {
         uploadPictureResult.setPicHeight(imageInfo.getHeight());
         uploadPictureResult.setPicScale(picScale);
         uploadPictureResult.setPicFormat(FileUtil.extName(uploadPath));
-        uploadPictureResult.setPicColor(imageInfo.getAve());
+        uploadPictureResult.setPicAve(imageInfo.getAve());
 
         // 返回可访问的地址
         return uploadPictureResult;
     }
 
 
-    private UploadPictureResult setUploadPictureResultCertainAttr(String originalFilename, CIObject compressedObj, String uploadPath) {
+    private UploadPictureResult setUploadPictureResultCertainAttr(ImageInfo imageInfo, String originalFilename, CIObject compressedObj, String uploadPath) {
         // 计算宽高
         int picWidth = compressedObj.getWidth();
         int picHeight = compressedObj.getHeight();
@@ -160,6 +160,7 @@ public abstract class PictureUploadTemplate {
         uploadPictureResult.setPicHeight(picHeight);
         uploadPictureResult.setPicScale(picScale);
         uploadPictureResult.setPicFormat(FileUtil.extName(originalFilename));
+        uploadPictureResult.setPicAve(imageInfo.getAve());
         return uploadPictureResult;
     }
 

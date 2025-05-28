@@ -1,9 +1,12 @@
 package com.tlm.storecollab.service.impl;
+import java.awt.*;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.io.IOException;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import cn.hutool.core.bean.BeanUtil;
@@ -20,7 +23,6 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.tlm.storecollab.common.ErrorCode;
 import com.tlm.storecollab.common.ThrowUtils;
 import com.tlm.storecollab.config.CosClientConfig;
@@ -32,10 +34,7 @@ import com.tlm.storecollab.manager.upload.PictureUpload;
 import com.tlm.storecollab.manager.upload.PictureUploadTemplate;
 import com.tlm.storecollab.manager.upload.UrlUpload;
 import com.tlm.storecollab.model.dto.file.UploadPictureResult;
-import com.tlm.storecollab.model.dto.picture.PictureQueryRequest;
-import com.tlm.storecollab.model.dto.picture.PictureReviewRequest;
-import com.tlm.storecollab.model.dto.picture.UploadPictureByBatchRequest;
-import com.tlm.storecollab.model.dto.picture.UploadPictureRequest;
+import com.tlm.storecollab.model.dto.picture.*;
 import com.tlm.storecollab.model.entity.Picture;
 import com.tlm.storecollab.model.entity.Space;
 import com.tlm.storecollab.model.entity.User;
@@ -46,6 +45,7 @@ import com.tlm.storecollab.service.PictureService;
 import com.tlm.storecollab.mapper.PictureMapper;
 import com.tlm.storecollab.service.SpaceService;
 import com.tlm.storecollab.service.UserService;
+import com.tlm.storecollab.utils.ImageColorUtil.ColorUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -54,7 +54,6 @@ import org.jsoup.select.Elements;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 
@@ -165,6 +164,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         picture.setPicHeight(uploadPictureResult.getPicHeight());
         picture.setPicScale(uploadPictureResult.getPicScale());
         picture.setPicFormat(uploadPictureResult.getPicFormat());
+        picture.setPicAve(uploadPictureResult.getPicAve());
         picture.setUserId(userId);
 
         if (opPrivate){
@@ -233,6 +233,9 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         Date createTime = pictureQueryRequest.getCreateTime();
         Boolean queryPrivateSpace = pictureQueryRequest.getQueryPrivateSpace();
         Long spaceId = pictureQueryRequest.getSpaceId();
+        Date startEditTime = pictureQueryRequest.getStartEditTime();
+        Date endEditTime = pictureQueryRequest.getEndEditTime();
+        String picAve = pictureQueryRequest.getPicAve();
 
 
         QueryWrapper<Picture> queryWrapper = new QueryWrapper<>();
@@ -261,10 +264,16 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         queryWrapper.eq(picWidth != null, "picWidth", picWidth);
         queryWrapper.eq(picHeight != null, "picHeight", picHeight);
         queryWrapper.eq(picScale != null, "picScale", picScale);
-        queryWrapper.eq(StrUtil.isNotBlank(picFormat), "picFormat", picFormat);
+        queryWrapper.eq(picAve != null, "picAve", picAve);
+        queryWrapper.and(StrUtil.isNotBlank(picFormat),
+                qw -> qw.eq("picFormat", picFormat.toLowerCase()).or().eq("picFormat", picFormat.toUpperCase()));
         queryWrapper.eq(userId != null, "userId", userId);
         // 创建时间在createTime之后
         queryWrapper.ge(createTime != null, "createTime", createTime);
+        // >= startEditTime
+        queryWrapper.ge(startEditTime != null, "editTime", startEditTime);
+        // < endEditTime
+        queryWrapper.lt(endEditTime != null, "editTime", endEditTime);
 
         // 设置查询空间id
         if (queryPrivateSpace){
@@ -509,7 +518,103 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         this.removePicture(pic);
     }
 
+    @Override
+    public List<PictureVO> searchPictureByColor(SearchPictureByColorRequest searchPictureByColorRequest, User loginUser) {
+        // 校验参数
+        ThrowUtils.throwIf(searchPictureByColorRequest == null, ErrorCode.PARAMS_ERROR);
+        // 判断是对公共空间还是私有空间查询
+        Long spaceId = searchPictureByColorRequest.getSpaceId();
+        QueryWrapper<Picture> pictureQueryWrapper = new QueryWrapper<>();
+        if (spaceId != null) {
+            // 对私有空间进行查询
+            Space space = spaceService.lambdaQuery().eq(Space::getId, spaceId).one();
+            Long userId = space.getUserId();
+            // 校验权限
+            ThrowUtils.throwIf(!ObjUtil.equals(userId, loginUser.getId()), ErrorCode.NO_AUTH, "没有权限查询该空间");
 
+            pictureQueryWrapper.eq("spaceId", spaceId);
+        }
+
+        List<Picture> pictureList = this.list(pictureQueryWrapper);
+        if (CollUtil.isEmpty(pictureList)) return new ArrayList<>();
+
+        // 查询图片并按照相似度排序
+        String picAve = searchPictureByColorRequest.getPicAve();
+        Color queryColor = Color.decode(picAve);
+
+        // 限制获取条数为12
+        List<Picture> resList = pictureList.stream().sorted(Comparator.comparingDouble(picture -> {
+            String picAve1 = picture.getPicAve();
+            if (StrUtil.isBlank(picAve1)) {
+                return Double.MAX_VALUE;
+            }
+            Color color = Color.decode(picAve1);
+            return -ColorUtil.calculateSimilarity(queryColor, color);
+        })).limit(12).collect(Collectors.toList());
+
+        // 转换为VO对象后返回
+        List<PictureVO> pictureVOS = PictureVO.objToVo(resList);
+
+        return pictureVOS;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean editPictureByBatch(PictureEditByBatchRequest pictureEditByBatchRequest, User loginUser) {
+        // 校验参数
+        ThrowUtils.throwIf(pictureEditByBatchRequest == null, ErrorCode.PARAMS_ERROR);
+
+        // 校验权限，判断请求的空间是否是当前用户创建的
+        Long spaceId = pictureEditByBatchRequest.getSpaceId();
+        Space space = spaceService.lambdaQuery().eq(Space::getId, spaceId).one();
+        ThrowUtils.throwIf(!ObjUtil.equals(space.getUserId(), loginUser.getId()), ErrorCode.NO_AUTH, "没有权限修改该空间");
+
+        // 查询图片，使用lambdaquery获取图片的id和SpaceId
+        List<Long> pictureIdList = pictureEditByBatchRequest.getPictureIdList();
+        List<Picture> pictureList = this.lambdaQuery().in(Picture::getId, pictureIdList).select(Picture::getId, Picture::getSpaceId).list();
+        ThrowUtils.throwIf(CollUtil.isEmpty(pictureList), ErrorCode.SYSTEM_ERROR, "未查询到需要修改的图片");
+
+        // 为需要修改的图片设置要修改的值
+        String category = pictureEditByBatchRequest.getCategory();
+        String tags = pictureEditByBatchRequest.getTags();
+        String nameRule = pictureEditByBatchRequest.getNameRule();
+        pictureList.forEach(picture -> {
+            if (StrUtil.isNotBlank(category)){
+                picture.setCategory(category);
+            }
+            if (StrUtil.isNotBlank(tags)){
+                picture.setTags(JSONUtil.toJsonStr(tags));
+            }
+        });
+        if (StrUtil.isNotBlank(nameRule)){
+            fillPictureWithNameRule(pictureList, nameRule);
+        }
+        // 使用mybatis-plus的批量修改
+        boolean b = this.updateBatchById(pictureList);
+        ThrowUtils.throwIf(!b, ErrorCode.SYSTEM_ERROR);
+        // 返回结果
+        return true;
+    }
+
+    /**
+     * 根据命名规则批量设置图片名称
+     * @param pictureList
+     * @param nameRule
+     */
+    private static void fillPictureWithNameRule(List<Picture> pictureList, String nameRule) {
+        if (CollUtil.isEmpty(pictureList)){
+            return;
+        }
+        long count = 1;
+        try{
+            for (Picture pic : pictureList) {
+                pic.setName(nameRule.replace("{序号}", String.valueOf(count++)));
+            }
+        }catch (Exception e){
+            log.error("批量修改图片名称时发生异常", e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "请检查命名规则是否正确");
+        }
+    }
 }
 
 
