@@ -3,7 +3,6 @@ package com.tlm.storecollab.api.aliyunapi;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
-import cn.hutool.http.Method;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.tlm.storecollab.api.aliyunapi.model.CreateOutPaintingTaskRequest;
@@ -28,12 +27,8 @@ import java.io.IOException;
 @Slf4j
 @Component
 public class OutPaintingTaskApi {
-
-    @Value("${aLiYun.keyId}")
-    private String secretId;
-
     @Value("${aLiYun.secret}")
-    private String secretKey;
+    private String apiKey;
 
     private static final String CREATE_OUT_PAINTING_TASK_API = "https://dashscope.aliyuncs.com/api/v1/services/aigc/image2image/out-painting";
 
@@ -46,16 +41,15 @@ public class OutPaintingTaskApi {
     /**
      * 创建图像外绘任务。
      * 
-     * @param apiKey API密钥
      * @param request 请求参数
      * @return 创建任务的响应结果
      */
-    public CreateOutPaintingTaskResponse createOutPaintingTask(String apiKey, CreateOutPaintingTaskRequest request) {
+    public CreateOutPaintingTaskResponse createOutPaintingTask(CreateOutPaintingTaskRequest request) {
         try {
             String body = request.toJson();
             // 发送POST请求并获取响应
             HttpResponse response1 = HttpRequest.post(CREATE_OUT_PAINTING_TASK_API)
-                    .header("Authorization", "Bearer " + secretKey)
+                    .header("Authorization", "Bearer " + this.apiKey)
                     .header("X-DashScope-Async", "enable")
                     .header("Content-Type", "application/json")
                     .body(body)
@@ -84,7 +78,7 @@ public class OutPaintingTaskApi {
         }
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             HttpGet httpGet = new HttpGet(String.format(QUERY_OUT_PAINTING_TASK_API, taskId));
-            httpGet.addHeader("Authorization", "Bearer " + secretKey);
+            httpGet.addHeader("Authorization", "Bearer " + apiKey);
             CloseableHttpResponse response = httpClient.execute(httpGet);
             String responseBody = EntityUtils.toString(response.getEntity(), "UTF-8");
             log.info("查询结果如下: {}", responseBody);
@@ -97,27 +91,6 @@ public class OutPaintingTaskApi {
             log.error("获取图片 task 信息发生错误", e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "系统错误，请稍后再试");
         }
-    }
-    
-    /**
-     * 测试函数：创建并查询图像外绘任务。
-     * 
-     * @param request 请求参数
-     * @return 查询任务的响应结果
-     */
-    public QueryOutPaintingTaskResponse testCreateAndQueryOutPaintingTask(CreateOutPaintingTaskRequest request) {
-        // 创建任务
-        CreateOutPaintingTaskResponse createResponse = createOutPaintingTask(secretKey, request);
-
-
-        // 获取任务ID
-        String taskId = createResponse.getTaskId();
-        if (taskId == null || taskId.isEmpty()) {
-            throw new RuntimeException("创建任务失败，未获得任务ID");
-        }
-        
-        // 查询任务
-        return queryOutPaintingTask(taskId);
     }
 
 }

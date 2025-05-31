@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tlm.storecollab.mapper.TaskMapper">
+
+    <resultMap id="BaseResultMap" type="com.tlm.storecollab.model.entity.Task">
+            <id property="id" column="id" jdbcType="BIGINT"/>
+            <result property="taskId" column="taskId" jdbcType="VARCHAR"/>
+            <result property="requestId" column="requestId" jdbcType="VARCHAR"/>
+            <result property="taskStatus" column="taskStatus" jdbcType="VARCHAR"/>
+            <result property="imageUrl" column="imageUrl" jdbcType="VARCHAR"/>
+            <result property="code" column="code" jdbcType="VARCHAR"/>
+            <result property="message" column="message" jdbcType="VARCHAR"/>
+            <result property="userId" column="userId" jdbcType="BIGINT"/>
+            <result property="createTime" column="createTime" jdbcType="TIMESTAMP"/>
+            <result property="editTime" column="editTime" jdbcType="TIMESTAMP"/>
+            <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
+            <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,taskId,requestId,
+        taskStatus,imageUrl,code,message,
+        userId,createTime,editTime,
+        updateTime,isDelete
+    </sql>
+</mapper>

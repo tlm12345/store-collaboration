@@ -89,3 +89,24 @@ CREATE INDEX idx_spaceId ON picture (spaceId);
 -- 为图片表添加picAve字段
 ALTER TABLE picture
     ADD COLUMN picAve varchar(32) null comment '图片平均色(主色调)';
+
+# 首先，仍然是5个固定字段：id, createTime, editTime, updateTime, isDelete。然后，需要保存创建任务的相关信息，这些信息来源于API的响应结果，主要有request_id, task_id, task_status, code, message。另外，还需要记录是谁创建了这个任务，所以需要userId.
+
+-- 任务表
+create table if not exists task
+(
+    id            bigint auto_increment comment 'id' primary key,
+    taskId        varchar(128)                                null comment '任务id',
+    requestId        varchar(128)                                null comment '请求唯一标识。可用于请求明细溯源和问题排查。',
+    taskStatus        varchar(128)                                null comment '任务状态。',
+    imageUrl  varchar(512) null comment '图片结果url',
+    code     varchar(128)         null comment '请求失败的错误码。请求成功时不会返回此参数',
+    message     varchar(128)         null comment '请求失败的消息。请求成功时不会返回此参数',
+    userId        bigint                                 not null comment '创建用户 id',
+    createTime    datetime     default CURRENT_TIMESTAMP not null comment '创建时间',
+    editTime      datetime     default CURRENT_TIMESTAMP not null comment '编辑时间',
+    updateTime    datetime     default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    isDelete      tinyint      default 0                 not null comment '是否删除',
+    INDEX idx_userId (userId),        -- 提升基于用户的查询性能
+    INDEX idx_taskStatus (taskStatus)  -- 提升基于任务状态的查询效率
+) comment '任务' collate = utf8mb4_unicode_ci;

@@ -1,10 +1,6 @@
 package com.tlm.storecollab.api.aliyunapi.model;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.ToString;
+import lombok.*;
 import cn.hutool.core.annotation.Alias;
 
 /**
@@ -18,16 +14,11 @@ import cn.hutool.core.annotation.Alias;
 public class CreateOutPaintingTaskResponse {
 
     /**
-     * 任务ID。
+     * 成功创建任务后返回的结果
      */
-    @Alias("task_id")
-    private String taskId;
+    @Alias("output")
+    private Output output;
 
-    /**
-     * 任务状态。
-     */
-    @Alias("task_status")
-    private String taskStatus;
 
     /**
      * 请求唯一标识。可用于请求明细溯源和问题排查。
@@ -44,4 +35,20 @@ public class CreateOutPaintingTaskResponse {
      * 请求失败的详细信息。请求成功时不会返回此参数，详情请参见错误信息。
      */
     private String message;
+
+    @Data
+    public class Output {
+
+        /**
+         * 任务ID。
+         */
+        @Alias("task_id")
+        private String taskId;
+
+        /**
+         * 任务状态。
+         */
+        @Alias("task_status")
+        private String taskStatus;
+    }
 }

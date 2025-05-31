@@ -60,6 +60,6 @@ knife4j:
 #    bucket: xxx
 
 ## 阿里云百炼大模型
-#aliYun:
-#  accessKeyId: xxx
-#  accessKeySecret: xxx
+#aLiYun:
+#  secret: xxx
+
