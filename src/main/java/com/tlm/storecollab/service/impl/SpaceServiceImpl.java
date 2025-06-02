@@ -131,6 +131,12 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
 
         ThrowUtils.throwIf(spaceName.isEmpty() || spaceName.length() > 30, ErrorCode.PARAMS_ERROR, "空间名称不能为空或者过长");
     }
+
+    @Override
+    public void validUserHasPrivateSpaceAuth(Long userId, Space space) {
+        // 判断用户id是否与空间的私人id一致，不一致，无权限，抛出异常；一致，直接返回。
+        ThrowUtils.throwIf(!ObjUtil.equals(userId, space.getUserId()), ErrorCode.NO_AUTH, "无权限");
+    }
 }
 
 

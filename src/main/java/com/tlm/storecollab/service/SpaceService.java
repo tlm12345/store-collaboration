@@ -45,4 +45,9 @@ public interface SpaceService extends IService<Space> {
      */
     void validUpdateSpaceRequest(SpaceUpdateRequest spaceUpdateRequest);
 
+    /**
+     * 校验用户是否具有某个私有空间的权限
+     */
+    void validUserHasPrivateSpaceAuth(Long userId, Space space);
+
 }

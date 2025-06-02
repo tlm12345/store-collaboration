@@ -1,6 +1,7 @@
 package com.tlm.storecollab.manager.upload;
 
 import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpResponse;
 import cn.hutool.http.HttpStatus;
@@ -9,6 +10,7 @@ import cn.hutool.http.Method;
 import com.tlm.storecollab.common.ErrorCode;
 import com.tlm.storecollab.common.ThrowUtils;
 import com.tlm.storecollab.exception.BusinessException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -16,10 +18,11 @@ import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
 
+@Slf4j
 @Service
 public class UrlUpload extends PictureUploadTemplate{
     @Override
-    public void validPicture(Object inputSource) {
+    public String validPicture(Object inputSource) {
         String url = (String) inputSource;
         // 判断URL是否为空
         ThrowUtils.throwIf(StrUtil.isBlank(url), ErrorCode.NULL_ERROR, "URL为空");
@@ -56,8 +59,12 @@ public class UrlUpload extends PictureUploadTemplate{
             // 如果是图片，获取其内容大小，不超过2MB就通过校验
             ThrowUtils.throwIf(lenSize > 2 * 1024 * 1024, ErrorCode.FILE_TOO_BIG_ERROR, "文件太大超过上限");
 
+            // 返回文件类型后缀
+            return contentType.toLowerCase().substring(6);
+
         } catch (NumberFormatException e) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件大小格式错误");
+            log.error("upload By url error: {}", e.getMessage());
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件大小格式错误或者url目标资源服务器未返回文件大小信息");
         } catch(Exception e){
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "其他错误");
 
@@ -70,9 +77,13 @@ public class UrlUpload extends PictureUploadTemplate{
     }
 
     @Override
-    public String getOriginalName(Object inputSource) {
+    public String getOriginalName(Object inputSource, String ext) {
         String url = (String) inputSource;
-        return FileUtil.mainName(url) + "." + FileUtil.extName(url);
+        // 为了增加支持的url范围，对于url直接使用随机生成名称
+        String mainName = RandomUtil.randomString(9);
+
+        // 这里的png是默认值
+        return mainName + "." + ext;
     }
 
     @Override

@@ -39,12 +39,12 @@ public abstract class PictureUploadTemplate {
      */
     public UploadPictureResult uploadPicture(Object inputSource, String uploadPathPrefix){
         // 校验图片
-        validPicture(inputSource);
+        String ext = validPicture(inputSource);
 
         // 图片上传地址
         String uuid = RandomUtil.randomString(16);
 
-        String originalFilename = getOriginalName(inputSource);
+        String originalFilename = getOriginalName(inputSource, ext);
         // 自己拼接文件上传路径，而不是使用原始文件名称，可以增强安全性
         String uploadFilename = String.format("%s_%s.%s", DateUtil.formatDate(new Date()), uuid,
                 FileUtil.getSuffix(originalFilename));
@@ -83,14 +83,14 @@ public abstract class PictureUploadTemplate {
      * 校验输入源
      * @param inputSource
      */
-    public abstract void validPicture(Object inputSource);
+    public abstract String validPicture(Object inputSource);
 
     /**
      * 获取原始文件名
      * @param inputSource
      * @return
      */
-    public abstract String getOriginalName(Object inputSource);
+    public abstract String getOriginalName(Object inputSource, String ext);
 
     /**
      * 下载文件

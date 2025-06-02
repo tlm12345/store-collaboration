@@ -14,7 +14,7 @@ import java.util.List;
 @Service
 public class PictureUpload extends PictureUploadTemplate{
     @Override
-    public void validPicture(Object inputSource) {
+    public String validPicture(Object inputSource) {
         MultipartFile multipartFile = (MultipartFile) inputSource;
         ThrowUtils.throwIf(multipartFile == null, ErrorCode.PARAMS_ERROR, "文件不能为空");
         // 1. 校验文件大小
@@ -27,10 +27,12 @@ public class PictureUpload extends PictureUploadTemplate{
         final List<String> ALLOW_FORMAT_LIST = Arrays.asList("jpeg", "png", "jpg", "webp");
         ThrowUtils.throwIf(!ALLOW_FORMAT_LIST.contains(fileSuffix), ErrorCode.PARAMS_ERROR, "文件类型错误");
 
+        return fileSuffix;
+
     }
 
     @Override
-    public String getOriginalName(Object inputSource) {
+    public String getOriginalName(Object inputSource, String ext) {
         MultipartFile multipartFile = (MultipartFile) inputSource;
 
         return multipartFile.getOriginalFilename();
