@@ -57,7 +57,7 @@ public class SpaceController {
     public BaseResponse<Long> createPrivateSpace(@RequestBody SpaceCreateRequest spaceCreateRequest, HttpServletRequest request){
         ThrowUtils.throwIf(spaceCreateRequest == null, ErrorCode.NULL_ERROR);
         User loginUser = userService.getLoginUser(request);
-        Long spaceId = spaceService.createPrivateSpace(spaceCreateRequest, loginUser);
+        Long spaceId = spaceService.createSpace(spaceCreateRequest, loginUser);
         return ResultUtils.success(spaceId);
     }
 

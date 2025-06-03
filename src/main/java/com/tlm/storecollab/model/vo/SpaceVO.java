@@ -24,6 +24,11 @@ public class SpaceVO {
     private Integer spaceLevel;
 
     /**
+     * 空间类别
+     */
+    private Integer spaceType;
+
+    /**
      * 空间已使用容量
      */
     private Long spaceSizeUsed;

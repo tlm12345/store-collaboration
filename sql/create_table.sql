@@ -110,3 +110,19 @@ create table if not exists task
     INDEX idx_userId (userId),        -- 提升基于用户的查询性能
     INDEX idx_taskStatus (taskStatus)  -- 提升基于任务状态的查询效率
 ) comment '任务' collate = utf8mb4_unicode_ci;
+
+alter table space
+    add column spaceType tinyint default 0 null comment '空间类型 0-私有空间;1-团队空间';
+-- 空间成员表
+create table if not exists space_user
+(
+    id            bigint auto_increment comment 'id' primary key,
+    spaceId        bigint                                 not null comment '空间 id',
+    userId        bigint                                 not null comment '创建用户 id',
+    spaceRole      varchar(128)   default 'viewer'                             null comment '空间角色 admin-管理员;viewer-浏览者;editor-编辑者',
+    createTime    datetime     default CURRENT_TIMESTAMP not null comment '创建时间',
+    updateTime    datetime     default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    UNIQUE key (spaceId, userId),
+    index idx_spaceId (spaceId),
+    index idx_userId (userId)
+) comment '空间成员' collate = utf8mb4_unicode_ci;

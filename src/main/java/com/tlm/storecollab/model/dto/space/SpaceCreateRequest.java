@@ -15,4 +15,9 @@ public class SpaceCreateRequest {
      * 空间等级
      */
     private Integer spaceLevel;
+
+    /**
+     * 空间类别
+     */
+    private Integer spaceType;
 }

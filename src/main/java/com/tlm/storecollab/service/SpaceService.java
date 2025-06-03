@@ -15,12 +15,12 @@ import com.tlm.storecollab.model.entity.User;
 public interface SpaceService extends IService<Space> {
 
     /**
-     * 为用户创建私人空间
+     * 为用户创建空间(私有或者团队空间)
      * @param spaceCreateRequest
      * @param loginUser
      * @return
      */
-    Long createPrivateSpace(SpaceCreateRequest spaceCreateRequest, User loginUser);
+    Long createSpace(SpaceCreateRequest spaceCreateRequest, User loginUser);
 
     /**
      * 验证用户私人空间是否还有空闲空间

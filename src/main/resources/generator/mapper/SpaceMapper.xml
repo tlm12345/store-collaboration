@@ -8,6 +8,7 @@
             <id property="id" column="id" jdbcType="BIGINT"/>
             <result property="spaceName" column="spaceName" jdbcType="VARCHAR"/>
             <result property="spaceLevel" column="spaceLevel" jdbcType="TINYINT"/>
+            <result property="spaceType" column="spaceType" jdbcType="TINYINT"/>
             <result property="spaceSizeUsed" column="spaceSizeUsed" jdbcType="BIGINT"/>
             <result property="spaceMaxSize" column="spaceMaxSize" jdbcType="BIGINT"/>
             <result property="userId" column="userId" jdbcType="BIGINT"/>
@@ -18,7 +19,7 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id,spaceName,spaceLevel,
+        id,spaceName,spaceLevel,spaceType,
         spaceSizeUsed,spaceMaxSize,userId,
         createTime,editTime,updateTime,
         isDelete

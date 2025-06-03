@@ -8,15 +8,20 @@ import com.tlm.storecollab.common.ErrorCode;
 import com.tlm.storecollab.common.ThrowUtils;
 import com.tlm.storecollab.model.dto.space.SpaceCreateRequest;
 import com.tlm.storecollab.model.dto.space.SpaceUpdateRequest;
+import com.tlm.storecollab.model.dto.spaceuser.AddSpaceUserRequest;
 import com.tlm.storecollab.model.entity.Picture;
 import com.tlm.storecollab.model.entity.Space;
 import com.tlm.storecollab.model.entity.User;
 import com.tlm.storecollab.model.enums.SpaceLevelEnum;
+import com.tlm.storecollab.model.enums.SpaceRoleEnum;
+import com.tlm.storecollab.model.enums.SpaceTypeEnum;
 import com.tlm.storecollab.service.PictureService;
 import com.tlm.storecollab.service.SpaceService;
 import com.tlm.storecollab.mapper.SpaceMapper;
+import com.tlm.storecollab.service.SpaceUserService;
 import com.tlm.storecollab.service.UserService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 
@@ -32,47 +37,61 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
     @Resource
     private UserService userService;
 
+    @Resource
+    private SpaceUserService spaceUserService;
+
 
 
     @Override
-    public Long createPrivateSpace(SpaceCreateRequest spaceCreateRequest, User loginUser) {
+    @Transactional(rollbackFor = Exception.class)
+    public Long createSpace(SpaceCreateRequest spaceCreateRequest, User loginUser) {
 //        1. 校验请求参数
         ThrowUtils.throwIf(spaceCreateRequest == null, ErrorCode.PARAMS_ERROR);
-//        2. 判断用户是否创建过空间
+//        2. 判断用户是否创建过空间::私人空间和团队空间都只能各创建一个
         Long userId = loginUser.getId();
         QueryWrapper<Space> objectQueryWrapper = new QueryWrapper<>();
         objectQueryWrapper.eq("userId", userId);
+        Integer spaceType = spaceCreateRequest.getSpaceType();
+        SpaceTypeEnum enumByValue1 = SpaceTypeEnum.getEnumByValue(spaceType);
+        ThrowUtils.throwIf(enumByValue1 == null, ErrorCode.PARAMS_ERROR, "不支持的空间类型");
+        objectQueryWrapper.eq("spaceType", enumByValue1.getValue());
         boolean exists = this.exists(objectQueryWrapper);
 //                * 是， 拒绝请求
         ThrowUtils.throwIf(exists, ErrorCode.PRIVATE_SPACE_HAS_EXISTS);
 //        3. 校验用户权限，如果是普通用户，则只能创建普通空间
         Space space = new Space();
         Boolean isAdmin = userService.isAdmin(loginUser);
+        Integer level = null;
+        Long maxCount = null;
+        Long maxSize = null;
         if (!isAdmin){
             SpaceLevelEnum common = SpaceLevelEnum.COMMON;
-            Integer level = common.getValue();
-            Long maxCount = common.getMaxCount();
-            Long maxSize = common.getMaxSize();
-            space.setSpaceLevel(level);
-            space.setSpaceMaxCount(maxCount);
-            space.setSpaceMaxSize(maxSize);
+            level = common.getValue();
+            maxCount = common.getMaxCount();
+            maxSize = common.getMaxSize();
+        }else {
+            SpaceLevelEnum enumByValue = SpaceLevelEnum.getEnumByValue(spaceCreateRequest.getSpaceLevel());
+            ThrowUtils.throwIf(enumByValue == null, ErrorCode.PARAMS_ERROR);
+            level = enumByValue.getValue();
+            maxCount = enumByValue.getMaxCount();
+            maxSize = enumByValue.getMaxSize();
         }
 
-        SpaceLevelEnum enumByValue = SpaceLevelEnum.getEnumByValue(spaceCreateRequest.getSpaceLevel());
-        ThrowUtils.throwIf(enumByValue == null, ErrorCode.PARAMS_ERROR);
-
-        Integer level = enumByValue.getValue();
-        Long maxCount = enumByValue.getMaxCount();
-        Long maxSize = enumByValue.getMaxSize();
         space.setSpaceLevel(level);
         space.setSpaceMaxCount(maxCount);
         space.setSpaceMaxSize(maxSize);
 
         space.setSpaceName(spaceCreateRequest.getSpaceName());
         space.setUserId(userId);
+        space.setSpaceType(spaceCreateRequest.getSpaceType());
 //        4. 设置好新建空间的相关属性，插入到数据库中
         boolean save = this.save(space);
         ThrowUtils.throwIf(!save, ErrorCode.SYSTEM_ERROR);
+        // 将创建团队空间的用户加入到该团队空间的成员表中
+        if (SpaceTypeEnum.Team.getValue().equals(spaceCreateRequest.getSpaceType())){
+            AddSpaceUserRequest addSpaceUserRequest = new AddSpaceUserRequest(space.getId(), loginUser.getId(), SpaceRoleEnum.ADMIN.getValue());
+            spaceUserService.addSpaceUser(addSpaceUserRequest, loginUser);
+        }
 //        5. 返回成功创建响应
         return space.getId();
     }
@@ -91,7 +110,7 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         Long spaceSizeUsed = space.getSpaceSizeUsed();
         Long spaceTotalCount = space.getSpaceTotalCount();
 
-        return (spaceSizeUsed < spaceMaxSize) || (spaceTotalCount < spaceMaxCount);
+        return (spaceSizeUsed < spaceMaxSize) && (spaceTotalCount < spaceMaxCount);
     }
 
 
