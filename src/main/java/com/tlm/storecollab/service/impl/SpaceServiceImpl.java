@@ -2,10 +2,10 @@ package com.tlm.storecollab.service.impl;
 
 import cn.hutool.core.util.ObjUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.tlm.storecollab.common.ErrorCode;
 import com.tlm.storecollab.common.ThrowUtils;
+import com.tlm.storecollab.mapper.SpaceMapper;
 import com.tlm.storecollab.model.dto.space.SpaceCreateRequest;
 import com.tlm.storecollab.model.dto.space.SpaceUpdateRequest;
 import com.tlm.storecollab.model.dto.spaceuser.AddSpaceUserRequest;
@@ -15,9 +15,7 @@ import com.tlm.storecollab.model.entity.User;
 import com.tlm.storecollab.model.enums.SpaceLevelEnum;
 import com.tlm.storecollab.model.enums.SpaceRoleEnum;
 import com.tlm.storecollab.model.enums.SpaceTypeEnum;
-import com.tlm.storecollab.service.PictureService;
 import com.tlm.storecollab.service.SpaceService;
-import com.tlm.storecollab.mapper.SpaceMapper;
 import com.tlm.storecollab.service.SpaceUserService;
 import com.tlm.storecollab.service.UserService;
 import org.springframework.stereotype.Service;
@@ -39,6 +37,11 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
 
     @Resource
     private SpaceUserService spaceUserService;
+
+    // 关闭分表
+//    @Resource
+//    @Lazy
+//    private DynamicShardingManager dynamicShardingManager;
 
 
 
@@ -87,8 +90,11 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
 //        4. 设置好新建空间的相关属性，插入到数据库中
         boolean save = this.save(space);
         ThrowUtils.throwIf(!save, ErrorCode.SYSTEM_ERROR);
+        // 动态创建分表, 函数内部，如果空间类型是团队空间，且等级为旗舰版才会创建分表，否则什么都不做。
+        // 关闭分表
+//        dynamicShardingManager.createSpacePictureTable(space);
         // 将创建团队空间的用户加入到该团队空间的成员表中
-        if (SpaceTypeEnum.Team.getValue().equals(spaceCreateRequest.getSpaceType())){
+        if (SpaceTypeEnum.TEAM.getValue().equals(spaceCreateRequest.getSpaceType())){
             AddSpaceUserRequest addSpaceUserRequest = new AddSpaceUserRequest(space.getId(), loginUser.getId(), SpaceRoleEnum.ADMIN.getValue());
             spaceUserService.addSpaceUser(addSpaceUserRequest, loginUser);
         }

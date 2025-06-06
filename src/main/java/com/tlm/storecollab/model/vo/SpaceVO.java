@@ -4,7 +4,8 @@ import cn.hutool.core.bean.BeanUtil;
 import com.tlm.storecollab.model.entity.Space;
 import lombok.Data;
 
-import java.util.Date;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 public class SpaceVO {
@@ -57,6 +58,11 @@ public class SpaceVO {
      * 创建用户信息
      */
     private UserVO userVO;
+
+    /**
+     * 权限列表
+     */
+    private List<String> permissionList = new ArrayList<>();
 
     public static SpaceVO objToVO(Space space){
         if (space == null) return null;

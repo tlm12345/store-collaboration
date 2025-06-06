@@ -7,7 +7,8 @@ import lombok.Getter;
 public enum SpaceLevelEnum {
 
     COMMON("普通版", 0, 100 * CapacityUnit.MB, 100L),
-    PROFESSIONAL("专业版", 1, 500 * CapacityUnit.MB, 500L);
+    PROFESSIONAL("专业版", 1, 500 * CapacityUnit.MB, 500L),
+    FLAGSHIP("旗舰版", 2, 1000 * CapacityUnit.MB, 1000L);
 
     /**
      * 文本描述

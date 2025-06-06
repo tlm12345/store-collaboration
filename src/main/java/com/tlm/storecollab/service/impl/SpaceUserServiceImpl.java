@@ -1,5 +1,4 @@
 package com.tlm.storecollab.service.impl;
-import java.util.Date;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -7,6 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.tlm.storecollab.common.DeleteRequest;
 import com.tlm.storecollab.common.ErrorCode;
 import com.tlm.storecollab.common.ThrowUtils;
+import com.tlm.storecollab.mapper.SpaceUserMapper;
 import com.tlm.storecollab.model.dto.spaceuser.*;
 import com.tlm.storecollab.model.entity.Space;
 import com.tlm.storecollab.model.entity.SpaceUser;
@@ -17,12 +17,12 @@ import com.tlm.storecollab.model.vo.SpaceVO;
 import com.tlm.storecollab.model.vo.UserVO;
 import com.tlm.storecollab.service.SpaceService;
 import com.tlm.storecollab.service.SpaceUserService;
-import com.tlm.storecollab.mapper.SpaceUserMapper;
 import com.tlm.storecollab.service.UserService;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -52,6 +52,13 @@ public class SpaceUserServiceImpl extends ServiceImpl<SpaceUserMapper, SpaceUser
         SpaceRoleEnum spaceRoleEnum = Optional.ofNullable(SpaceRoleEnum.getEnumByValue(spaceRole)).orElse(SpaceRoleEnum.VIEWER);
         // 校验参数非空
         ThrowUtils.throwIf(spaceId == null || userId == null, ErrorCode.NULL_ERROR);
+
+        // 校验空间是否存在
+        Space space = spaceService.getById(spaceId);
+        ThrowUtils.throwIf(space == null, ErrorCode.NULL_ERROR, "空间不存在");
+        // 校验用户是否存在
+        User user = userService.getById(userId);
+        ThrowUtils.throwIf(user == null, ErrorCode.NULL_ERROR, "用户不存在");
 
         // 将用户加入到空间成员表中
         SpaceUser spaceUser = new SpaceUser();
@@ -99,7 +106,10 @@ public class SpaceUserServiceImpl extends ServiceImpl<SpaceUserMapper, SpaceUser
         ThrowUtils.throwIf(spaceId == null || userId == null, ErrorCode.NULL_ERROR);
 
         // 从空间成员表中查询特定成员
-        return this.lambdaQuery().eq(SpaceUser::getSpaceId, spaceId).eq(SpaceUser::getUserId, userId).one();
+        SpaceUser spaceUser = this.lambdaQuery().eq(SpaceUser::getSpaceId, spaceId).eq(SpaceUser::getUserId, userId).one();
+        ThrowUtils.throwIf(spaceUser == null, ErrorCode.NULL_ERROR, "空间成员不存在");
+
+        return spaceUser;
     }
 
     @Override

@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tlm.storecollab.annotation.AuthCheck;
 import com.tlm.storecollab.common.*;
 import com.tlm.storecollab.constant.UserConstant;
+import com.tlm.storecollab.manager.auth.StpKit;
 import com.tlm.storecollab.model.dto.user.*;
 import com.tlm.storecollab.model.entity.User;
 import com.tlm.storecollab.model.vo.UserVO;
@@ -55,6 +56,9 @@ public class UserController {
         // 将用户信息存入 session
         HttpSession session = request.getSession();
         session.setAttribute(UserConstant.USER_LOGIN_STATE, loginUser);
+        // 使用sa-token进行登录态管理
+        StpKit.SPACE.login(loginUser.getId());
+        StpKit.SPACE.getSession().set(UserConstant.USER_LOGIN_STATE, loginUser);
 
         return ResultUtils.success(userService.getLoginUserVO(loginUser));
     }
@@ -86,6 +90,9 @@ public class UserController {
     @PostMapping("/logout")
     public BaseResponse<Boolean> logout(HttpServletRequest request){
         userService.logout(request);
+
+        // 使用sa-token释放用户登录态
+        StpKit.SPACE.logout();
         return ResultUtils.success(true);
     }
 

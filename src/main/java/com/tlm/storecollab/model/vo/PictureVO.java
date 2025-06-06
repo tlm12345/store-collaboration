@@ -2,9 +2,6 @@ package com.tlm.storecollab.model.vo;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.tlm.storecollab.model.entity.Picture;
 import lombok.Data;
 
@@ -99,6 +96,11 @@ public class PictureVO implements Serializable {
      * 创建时间
      */
     private Date createTime;
+
+    /**
+     * 权限列表
+     */
+    private List<String> permissionList = new ArrayList<>();
 
     public static PictureVO objToVo(Picture picture) {
         PictureVO res = new PictureVO();
